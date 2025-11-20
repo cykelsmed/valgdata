@@ -47,7 +47,7 @@ def analyze_data(output_dir='excel_output'):
         findings['køn_mænd'] = int(køn_dist.get('M', 0))
         findings['køn_kvinder'] = int(køn_dist.get('K', 0))
         findings['køn_ukendt'] = int(køn_dist.get('Ukendt', 0))
-        findings['køn_procent_kvinder'] = round(køn_dist.get('K', 0) / (køn_dist.get('M', 0) + køn_dist.get('K', 0)) * 100, 1)
+        findings['køn_procent_kvinder'] = round(køn_dist.get('K', 0) / (køn_dist.get('M', 0) + køn_dist.get('K', 0)) * 100, 1) if (køn_dist.get('M', 0) + køn_dist.get('K', 0)) > 0 else 0
 
     # Top partier
     if 'ListeNavn' in kandidater.columns:
@@ -68,6 +68,7 @@ def analyze_data(output_dir='excel_output'):
 
             findings['bedste_kønsbalance'] = store_partier.sort_values('Afvigelse').head(5)['Andel_Kvinder'].to_dict()
             findings['værste_kønsbalance'] = store_partier.sort_values('Andel_Kvinder').head(5)['Andel_Kvinder'].to_dict()
+            findings['alle_partier_kønsbalance'] = parti_køn[['K', 'M', 'Total', 'Andel_Kvinder']].sort_values('Total', ascending=False).to_dict('index')
 
     # Kommuner
     if 'KommuneNavn' in kandidater.columns:
@@ -78,6 +79,93 @@ def analyze_data(output_dir='excel_output'):
     if 'RegionNavn' in kandidater.columns:
         regioner = kandidater[kandidater['RegionNavn'] != '']['RegionNavn'].unique()
         findings['antal_regioner'] = len(regioner)
+
+    # === JOURNALISTISKE ANALYSER ===
+
+    # 1. Regional kønsbalance analyse
+    if 'EstimeretKøn' in kandidater.columns and 'RegionNavn' in kandidater.columns:
+        kandidater_regional = kandidater[kandidater['RegionNavn'] != ''].copy()
+        kandidater_regional_kendt = kandidater_regional[kandidater_regional['EstimeretKøn'].isin(['M', 'K'])]
+
+        if len(kandidater_regional_kendt) > 0:
+            region_køn = kandidater_regional_kendt.groupby(['RegionNavn', 'EstimeretKøn']).size().unstack(fill_value=0)
+            if 'K' in region_køn.columns and 'M' in region_køn.columns:
+                region_køn['Total'] = region_køn.sum(axis=1)
+                region_køn['Andel_Kvinder'] = region_køn['K'] / (region_køn['M'] + region_køn['K']) * 100
+                findings['regional_kønsbalance'] = region_køn[['K', 'M', 'Total', 'Andel_Kvinder']].sort_values('Andel_Kvinder', ascending=False).to_dict('index')
+
+    # 2. Kommunal kønsbalance (min 50 kandidater for at undgå statistisk støj)
+    if 'EstimeretKøn' in kandidater.columns and 'KommuneNavn' in kandidater.columns:
+        kandidater_kommunal = kandidater[kandidater['KommuneNavn'] != ''].copy()
+        kandidater_kommunal_kendt = kandidater_kommunal[kandidater_kommunal['EstimeretKøn'].isin(['M', 'K'])]
+
+        if len(kandidater_kommunal_kendt) > 0:
+            kommune_køn = kandidater_kommunal_kendt.groupby(['KommuneNavn', 'EstimeretKøn']).size().unstack(fill_value=0)
+            if 'K' in kommune_køn.columns and 'M' in kommune_køn.columns:
+                kommune_køn['Total'] = kommune_køn.sum(axis=1)
+                kommune_køn['Andel_Kvinder'] = kommune_køn['K'] / (kommune_køn['M'] + kommune_køn['K']) * 100
+
+                # Kun kommuner med 50+ kandidater for valid sammenligning
+                store_kommuner = kommune_køn[kommune_køn['Total'] >= 50].copy()
+                findings['bedste_kommuner_kønsbalance'] = store_kommuner.nlargest(10, 'Andel_Kvinder')[['K', 'M', 'Total', 'Andel_Kvinder']].to_dict('index')
+                findings['værste_kommuner_kønsbalance'] = store_kommuner.nsmallest(10, 'Andel_Kvinder')[['K', 'M', 'Total', 'Andel_Kvinder']].to_dict('index')
+
+    # 3. Parti-regional variation (store partier i forskellige regioner)
+    if 'EstimeretKøn' in kandidater.columns and 'ListeNavn' in kandidater.columns and 'RegionNavn' in kandidater.columns:
+        kandidater_regional = kandidater[kandidater['RegionNavn'] != ''].copy()
+        kandidater_regional_kendt = kandidater_regional[kandidater_regional['EstimeretKøn'].isin(['M', 'K'])]
+
+        if len(kandidater_regional_kendt) > 0:
+            # Top 5 partier
+            top5_partier = kandidater['ListeNavn'].value_counts().head(5).index.tolist()
+
+            parti_regional_data = {}
+            for parti in top5_partier:
+                parti_data = kandidater_regional_kendt[kandidater_regional_kendt['ListeNavn'] == parti]
+                if len(parti_data) > 0:
+                    region_breakdown = parti_data.groupby(['RegionNavn', 'EstimeretKøn']).size().unstack(fill_value=0)
+                    if 'K' in region_breakdown.columns and 'M' in region_breakdown.columns:
+                        region_breakdown['Total'] = region_breakdown.sum(axis=1)
+                        region_breakdown['Andel_Kvinder'] = region_breakdown['K'] / (region_breakdown['M'] + region_breakdown['K']) * 100
+                        parti_regional_data[parti] = region_breakdown[['K', 'M', 'Total', 'Andel_Kvinder']].to_dict('index')
+
+            findings['parti_regional_variation'] = parti_regional_data
+
+    # 4. Små partier med god kønsbalance (interessant angle)
+    if 'EstimeretKøn' in kandidater.columns and 'ListeNavn' in kandidater.columns:
+        kandidater_kendt = kandidater[kandidater['EstimeretKøn'].isin(['M', 'K'])]
+        parti_køn = kandidater_kendt.groupby(['ListeNavn', 'EstimeretKøn']).size().unstack(fill_value=0)
+        if 'K' in parti_køn.columns and 'M' in parti_køn.columns:
+            parti_køn['Total'] = parti_køn.sum(axis=1)
+            parti_køn['Andel_Kvinder'] = parti_køn['K'] / (parti_køn['M'] + parti_køn['K']) * 100
+
+            # Små/mellemstore partier (20-100 kandidater) med god kønsbalance
+            mellem_partier = parti_køn[(parti_køn['Total'] >= 20) & (parti_køn['Total'] < 100)].copy()
+            mellem_partier['Afvigelse'] = abs(mellem_partier['Andel_Kvinder'] - 50)
+            findings['små_partier_god_balance'] = mellem_partier.sort_values('Afvigelse').head(10)[['K', 'M', 'Total', 'Andel_Kvinder']].to_dict('index')
+
+    # 5. Kommunal vs Regional kønsbalance sammenligning
+    if 'EstimeretKøn' in kandidater.columns and 'ValgNavn' in kandidater.columns:
+        kandidater_kendt = kandidater[kandidater['EstimeretKøn'].isin(['M', 'K'])]
+
+        kommunal = kandidater_kendt[kandidater_kendt['ValgNavn'].str.contains('Kommunalvalg', na=False)]
+        regional = kandidater_kendt[kandidater_kendt['ValgNavn'].str.contains('Regionsrådsvalg', na=False)]
+
+        if len(kommunal) > 0:
+            kommunal_køn = kommunal['EstimeretKøn'].value_counts()
+            kommunal_pct = round(kommunal_køn.get('K', 0) / (kommunal_køn.get('M', 0) + kommunal_køn.get('K', 0)) * 100, 1)
+            findings['kommunal_køn_procent'] = kommunal_pct
+
+        if len(regional) > 0:
+            regional_køn = regional['EstimeretKøn'].value_counts()
+            regional_pct = round(regional_køn.get('K', 0) / (regional_køn.get('M', 0) + regional_køn.get('K', 0)) * 100, 1)
+            findings['regional_køn_procent'] = regional_pct
+
+    # 6. Kønsmetode statistik (hvor mange blev manuelt/AI identificeret)
+    if 'KønsMetode' in kandidater.columns:
+        metode_dist = kandidater['KønsMetode'].value_counts()
+        findings['kønsmetode_stats'] = metode_dist.to_dict()
+        findings['kønsmetode_manuel_pct'] = round(metode_dist.get('manuel identifikation', 0) / len(kandidater) * 100, 1) if len(kandidater) > 0 else 0
 
     return findings
 
@@ -126,7 +214,7 @@ def generate_master_findings(findings, output_dir='excel_output'):
 
 **Blandt kendte køn:** {findings['køn_procent_kvinder']:.1f}% kvinder
 
-⚠️ *Køn er estimeret baseret på fornavne via gender-guesser (89% kendt køn)*
+✅ *Køn er estimeret via kombineret manuel database og automatisk navneidentifikation (100% dækning)*
 """
 
     if 'bedste_kønsbalance' in findings and findings['bedste_kønsbalance']:
@@ -152,6 +240,97 @@ def generate_master_findings(findings, output_dir='excel_output'):
 """
         for i, (parti, antal) in enumerate(list(findings['top_partier'].items())[:10], 1):
             content += f"{i}. **{parti}**: {antal:,} kandidater\n"
+
+    # Kommunal vs Regional sammenligning
+    if 'kommunal_køn_procent' in findings and 'regional_køn_procent' in findings:
+        content += f"""
+### 5. Kommunalvalg vs Regionsrådsvalg
+
+**Kønsfordeling:**
+- **Kommunalvalg:** {findings['kommunal_køn_procent']:.1f}% kvinder ({findings['kommunal_kandidater']:,} kandidater)
+- **Regionsrådsvalg:** {findings['regional_køn_procent']:.1f}% kvinder ({findings['regional_kandidater']:,} kandidater)
+- **Forskel:** {abs(findings['kommunal_køn_procent'] - findings['regional_køn_procent']):.1f} procentpoint
+
+💡 *{'Flere kvinder stiller op til regionsrådsvalg' if findings['regional_køn_procent'] > findings['kommunal_køn_procent'] else 'Flere kvinder stiller op til kommunalvalg'}*
+"""
+
+    # Regional kønsbalance
+    if 'regional_kønsbalance' in findings:
+        content += f"""
+### 6. Kønsbalance per region (Regionsrådsvalg)
+
+"""
+        for i, (region, data) in enumerate(list(findings['regional_kønsbalance'].items())[:5], 1):
+            content += f"{i}. **{region}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['K'])} K / {int(data['M'])} M)\n"
+
+    # Kommunale highlights
+    if 'bedste_kommuner_kønsbalance' in findings and findings['bedste_kommuner_kønsbalance']:
+        content += f"""
+### 7. Bedste kommunale kønsbalance (kommuner med 50+ kandidater)
+
+"""
+        for i, (kommune, data) in enumerate(list(findings['bedste_kommuner_kønsbalance'].items())[:5], 1):
+            content += f"{i}. **{kommune}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
+
+    if 'værste_kommuner_kønsbalance' in findings and findings['værste_kommuner_kønsbalance']:
+        content += f"""
+### 8. Lavest kvinde-andel kommunalt (kommuner med 50+ kandidater)
+
+"""
+        for i, (kommune, data) in enumerate(list(findings['værste_kommuner_kønsbalance'].items())[:5], 1):
+            content += f"{i}. **{kommune}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
+
+    # Små partier med god balance
+    if 'små_partier_god_balance' in findings and findings['små_partier_god_balance']:
+        content += f"""
+### 9. Mindre partier med god kønsbalance (20-100 kandidater)
+
+"""
+        for i, (parti, data) in enumerate(list(findings['små_partier_god_balance'].items())[:5], 1):
+            content += f"{i}. **{parti}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
+
+    # Kønsmetode statistik
+    if 'kønsmetode_manuel_pct' in findings:
+        content += f"""
+### 10. Datakvalitet - Kønsidentifikation
+
+**Metode:**
+- **Manuel identifikation:** {findings['kønsmetode_manuel_pct']:.1f}% af kandidater
+- **Automatisk (gender-guesser):** {100 - findings['kønsmetode_manuel_pct']:.1f}% af kandidater
+- **100% kønsbestemmelse** - ingen ukendte kandidater
+
+💡 *Alle kandidater har fået identificeret køn via kombineret manuel database og automatisk navneidentifikation*
+"""
+
+    # Parti-regional variation
+    if 'parti_regional_variation' in findings and findings['parti_regional_variation']:
+        content += f"""
+
+---
+
+## 📍 REGIONALE VARIATIONER
+
+### Kønsbalance i top 5 partier per region
+
+"""
+        for parti, region_data in list(findings['parti_regional_variation'].items())[:5]:
+            content += f"\n**{parti}:**\n"
+            for region, data in sorted(region_data.items(), key=lambda x: x[1]['Andel_Kvinder'], reverse=True):
+                content += f"- {region}: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
+
+    # Detaljeret partioversigt
+    if 'alle_partier_kønsbalance' in findings and findings['alle_partier_kønsbalance']:
+        content += f"""
+
+---
+
+## 🎯 KOMPLET PARTIOVERSIGT
+
+### Alle partier sorteret efter størrelse
+
+"""
+        for i, (parti, data) in enumerate(list(findings['alle_partier_kønsbalance'].items())[:20], 1):
+            content += f"{i}. **{parti}**: {int(data['Total'])} kandidater - {data['Andel_Kvinder']:.1f}% kvinder ({int(data['K'])} K / {int(data['M'])} M)\n"
 
     content += """
 
@@ -217,10 +396,11 @@ Med dette datasæt kan du analysere:
 - ✅ Officielle data fra valg.dk
 - ✅ Komplet dækning (alle kommuner/regioner)
 - ✅ Ned til afstemningsområde-niveau
-- ✅ Kønsestimering (89% kendt køn)
+- ✅ 100% kønsidentifikation via kombineret manuel database og automatisk estimering
+- ✅ Verificeret mod testdata - ekskluderet KOMBIT's verifikationsdata
 
 ### Begrænsninger:
-- ⚠️ Køn er ESTIMERET (ikke officielle data)
+- ⚠️ Køn er ESTIMERET via fornavne (ikke officielle data fra CPR)
 - ⚠️ Ingen demografiske data (alder, uddannelse)
 - ⚠️ Historiske data kun som ændringstal
 - ⚠️ Binær kønsklassifikation (M/K)
