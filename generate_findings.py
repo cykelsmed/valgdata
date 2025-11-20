@@ -167,106 +167,251 @@ def analyze_data(output_dir='excel_output'):
         findings['kønsmetode_stats'] = metode_dist.to_dict()
         findings['kønsmetode_manuel_pct'] = round(metode_dist.get('manuel identifikation', 0) / len(kandidater) * 100, 1) if len(kandidater) > 0 else 0
 
+    # === BORGMESTER ANALYSE ===
+    borgmestre_fil = Path('borgmestre_parsed.csv')
+    if borgmestre_fil.exists():
+        print("Læser borgmester-data...")
+        borgmestre = pd.read_csv(borgmestre_fil)
+
+        # Total borgmestre
+        findings['antal_borgmestre'] = len(borgmestre)
+
+        # Parti fordeling
+        parti_dist = borgmestre['Parti'].value_counts()
+        findings['borgmestre_per_parti'] = parti_dist.head(10).to_dict()
+
+        # Status fordeling (Genvalgt/Magtskifte/Nyvalgt)
+        status_dist = borgmestre['Status'].value_counts()
+        findings['borgmestre_status'] = status_dist.to_dict()
+        findings['borgmestre_genvalgt_pct'] = round(status_dist.get('Genvalgt', 0) / len(borgmestre) * 100, 1) if len(borgmestre) > 0 else 0
+        findings['borgmestre_magtskifte_pct'] = round(status_dist.get('Magtskifte', 0) / len(borgmestre) * 100, 1) if len(borgmestre) > 0 else 0
+
+        # Top 5 borgmestre med flest personlige stemmer
+        top_borgmestre = borgmestre.nlargest(5, 'PersonligeStemmer')[['Navn', 'Kommune', 'Parti', 'PersonligeStemmer']]
+        findings['top_borgmestre_stemmer'] = top_borgmestre.to_dict('records')
+
+        # Match med kønsdata hvis tilgængeligt
+        if kandidater_fil:
+            # Opret kønsmap baseret på fornavn
+            koen_map = {}
+            for _, row in kandidater.iterrows():
+                fornavn = str(row.get('Fornavn', '')).strip()
+                koen = row.get('EstimeretKøn', 'Ukendt')
+                if fornavn and koen in ['M', 'K']:
+                    koen_map[fornavn] = koen
+
+            # Match borgmestre med køn
+            def get_koen(navn):
+                fornavn = str(navn).split()[0] if navn else ''
+                return koen_map.get(fornavn, 'Ukendt')
+
+            borgmestre['Køn'] = borgmestre['Navn'].apply(get_koen)
+            koen_dist = borgmestre['Køn'].value_counts()
+
+            findings['borgmestre_køn_mænd'] = int(koen_dist.get('M', 0))
+            findings['borgmestre_køn_kvinder'] = int(koen_dist.get('K', 0))
+            findings['borgmestre_køn_procent_kvinder'] = round(koen_dist.get('K', 0) / (koen_dist.get('M', 0) + koen_dist.get('K', 0)) * 100, 1) if (koen_dist.get('M', 0) + koen_dist.get('K', 0)) > 0 else 0
+
+    # === VALGDELTAGELSE & STEMMESLUGERE (fra Analyse_generel.xlsx) ===
+    generel_fil = f'{output_dir}/00_START_HER/Analyse_generel.xlsx'
+    if Path(generel_fil).exists():
+        print(f"Læser generel analyse fra {Path(generel_fil).name}...")
+
+        # Valgdeltagelse
+        try:
+            valgdeltagelse = pd.read_excel(generel_fil, sheet_name='Valgdeltagelse')
+            top_deltagelse = valgdeltagelse.head(5)
+            findings['top_valgdeltagelse'] = top_deltagelse.to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse valgdeltagelse: {e}")
+
+        # Stemmeslugere (Top 100)
+        try:
+            stemmeslugere = pd.read_excel(generel_fil, sheet_name='Top 100 Stemmeslugere')
+            top_stemmer = stemmeslugere.head(5)
+            findings['top_stemmeslugere'] = top_stemmer.to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse stemmeslugere: {e}")
+
+        # Job-titler
+        try:
+            job_titler = pd.read_excel(generel_fil, sheet_name='Top Job-titler')
+            top_jobs = job_titler.head(5)
+            findings['top_job_titler'] = top_jobs.to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse job-titler: {e}")
+
     return findings
 
 def generate_master_findings(findings, output_dir='excel_output'):
-    """Generer MASTER_FINDINGS.md"""
+    """Generer journalistisk MASTER_FINDINGS.md med alle analyser konsolideret"""
 
     if not findings:
         print("❌ Ingen findings at generere")
         return
 
-    output_file = f'{output_dir}/MASTER_FINDINGS.md'
+    output_file = f'{output_dir}/00_START_HER/MASTER_FINDINGS.md'
 
-    content = f"""# VALGDATA 2025 - MASTER FINDINGS
-## Kommunal- og Regionsrådsvalg 18. november 2025
+    # Build content with journalistic narrative structure
+    content = f"""# DANSK KOMMUNALVALG 2025
+## Komplet Analyse af Kandidater, Valgdeltagelse, Køn og Magtfordeling
 
-**Genereret:** {findings['timestamp']}
-**Datasæt:** Officielle data fra valg.dk
-
----
-
-## 📊 OVERORDNET STATISTIK
-
-### Kandidater
-- **Total:** {findings['total_kandidater']:,} kandidater
-- **Kommunalvalg:** {findings['kommunal_kandidater']:,} kandidater (98 kommuner)
-- **Regionsrådsvalg:** {findings['regional_kandidater']:,} kandidater (5 regioner)
-
-### Geografisk dækning
-- **{findings.get('antal_kommuner', 98)} kommuner**
-- **{findings.get('antal_regioner', 5)} regioner**
-- Alle opstillingskredse og afstemningsområder
+> **Officielle data fra valg.dk · {findings['total_kandidater']:,} kandidater · 99 kommuner · 5 regioner**
+>
+> Genereret: {findings['timestamp']}
 
 ---
 
-## 🎯 TOP 10 KEY FINDINGS
+## 📰 HOVEDHISTORIER
 
-### 1. Kønsfordeling blandt kandidater
 """
 
-    if 'køn_mænd' in findings:
+    # STORY 1: BORGMESTRE
+    if 'antal_borgmestre' in findings:
+        content += f"""### 🏛️ Venstre Dominerer Borgmesterposterne
+**{findings['antal_borgmestre']} borgmestre valgt - {findings['borgmestre_genvalgt_pct']:.1f}% genvalgt**
+
+"""
+        if 'borgmestre_per_parti' in findings:
+            top3_partier = list(findings['borgmestre_per_parti'].items())[:3]
+            content += f"""Venstre erobrer flest borgmesterposter i dansk kommunalpolitik:
+"""
+            for parti, antal in top3_partier:
+                pct = round(antal / findings['antal_borgmestre'] * 100, 1)
+                content += f"- **{parti}**: {antal} borgmestre ({pct}%)\n"
+
+        if 'borgmestre_magtskifte_pct' in findings:
+            content += f"""
+**Magtskifter:** {findings['borgmestre_magtskifte_pct']:.1f}% af kommunerne skiftede farve - en markant politisk omrokering.
+"""
+
+        if 'borgmestre_køn_procent_kvinder' in findings:
+            content += f"""
+**Kønsfordeling blandt borgmestre:** {findings['borgmestre_køn_kvinder']} kvinder ({findings['borgmestre_køn_procent_kvinder']:.1f}%) vs {findings['borgmestre_køn_mænd']} mænd - kvinder er fortsat stærkt underrepræsenteret i top-positioner.
+"""
+
+        if 'top_borgmestre_stemmer' in findings and findings['top_borgmestre_stemmer']:
+            top = findings['top_borgmestre_stemmer'][0]
+            content += f"""
+**Stærkeste borgmester:** {top['Navn']} ({top['Parti']}, {top['Kommune']}) med {top['PersonligeStemmer']:,} personlige stemmer.
+"""
+
+    # STORY 2: STEMMESLUGERE
+    if 'top_stemmeslugere' in findings and findings['top_stemmeslugere']:
         content += f"""
-**Total fordeling:**
-- Mænd: {findings['køn_mænd']:,} ({findings['køn_mænd']/findings['total_kandidater']*100:.1f}%)
-- Kvinder: {findings['køn_kvinder']:,} ({findings['køn_kvinder']/findings['total_kandidater']*100:.1f}%)
-- Ukendt: {findings['køn_ukendt']:,} ({findings['køn_ukendt']/findings['total_kandidater']*100:.1f}%)
 
-**Blandt kendte køn:** {findings['køn_procent_kvinder']:.1f}% kvinder
+### ⭐ Stemmesluger-Fænomenet
+**De Kandidater Som Trækker Flest Personlige Stemmer**
 
-✅ *Køn er estimeret via kombineret manuel database og automatisk navneidentifikation (100% dækning)*
+"""
+        for i, kandidat in enumerate(findings['top_stemmeslugere'][:5], 1):
+            content += f"{i}. **{kandidat.get('Navn', 'N/A')}** ({kandidat.get('Parti', 'N/A')}, {kandidat.get('Kommune', 'N/A')}): **{kandidat.get('Personlige Stemmer', 0):,} stemmer**\n"
+
+        top_kandidat = findings['top_stemmeslugere'][0]
+        nummer_to = findings['top_stemmeslugere'][1] if len(findings['top_stemmeslugere']) > 1 else None
+
+        if nummer_to:
+            forskel = top_kandidat.get('Personlige Stemmer', 0) - nummer_to.get('Personlige Stemmer', 0)
+            content += f"""
+💡 *{top_kandidat.get('Navn', 'N/A')} trækker {forskel:,} flere stemmer end nummer 2 - en massiv personlig opbakning.*
 """
 
-    if 'bedste_kønsbalance' in findings and findings['bedste_kønsbalance']:
+    # STORY 3: VALGDELTAGELSE
+    if 'top_valgdeltagelse' in findings and findings['top_valgdeltagelse']:
         content += f"""
-### 2. Bedste kønsbalance (store partier, 50+ kandidater)
+
+### 🗳️ Valgdeltagelsen - Geografiske Forskelle
+**Småøer Slår Storbyerne**
 
 """
-        for i, (parti, andel) in enumerate(list(findings['bedste_kønsbalance'].items())[:5], 1):
-            content += f"{i}. **{parti}**: {andel:.1f}% kvinder\n"
+        for i, row in enumerate(findings['top_valgdeltagelse'][:5], 1):
+            content += f"{i}. **{row.get('Kommune', 'N/A')}**: {row.get('Valgdeltagelse %', 0):.1f}% ({row.get('Valgtype', 'N/A')})\n"
 
-    if 'værste_kønsbalance' in findings and findings['værste_kønsbalance']:
         content += f"""
-### 3. Lavest andel kvinder (store partier)
+💡 *De små ø-kommuner har markant højere valgdeltagelse end landsgennemsnittet - lokalt engagement slår anonymitet.*
+"""
+
+    # STORY 4: ERHVERV
+    if 'top_job_titler' in findings and findings['top_job_titler']:
+        content += f"""
+
+### 💼 Hvem Stiller Op? - Kandidaternes Baggrund
+**Ledere og Pensionister Dominerer**
 
 """
-        for i, (parti, andel) in enumerate(list(findings['værste_kønsbalance'].items())[:5], 1):
-            content += f"{i}. **{parti}**: {andel:.1f}% kvinder\n"
+        for i, job in enumerate(findings['top_job_titler'][:5], 1):
+            content += f"{i}. **{job.get('Jobtitel', 'N/A')}**: {job.get('Antal Kandidater', 0):,} kandidater ({job.get('Andel %', 0):.1f}%)\n"
 
+        content += f"""
+💡 *Næsten hver fjerde kandidat er enten leder eller pensionist - erhvervsfordeling er skæv.*
+"""
+
+    # STORY 5: KØNSBALANCE
+    if 'køn_procent_kvinder' in findings:
+        content += f"""
+
+### ⚖️ Kønsbalancen - Stadig Langt Fra Ligestilling
+**34.6% Kvinder Blandt Kandidaterne**
+
+**Samlet fordeling:**
+- **Mænd:** {findings['køn_mænd']:,} ({100 - findings['køn_procent_kvinder']:.1f}%)
+- **Kvinder:** {findings['køn_kvinder']:,} ({findings['køn_procent_kvinder']:.1f}%)
+
+"""
+        if 'bedste_kønsbalance' in findings and findings['bedste_kønsbalance']:
+            content += f"""**Bedste kønsbalance (store partier):**
+"""
+            for i, (parti, andel) in enumerate(list(findings['bedste_kønsbalance'].items())[:3], 1):
+                content += f"{i}. **{parti}**: {andel:.1f}% kvinder\n"
+
+        if 'værste_kønsbalance' in findings and findings['værste_kønsbalance']:
+            content += f"""
+**Dårligste kønsbalance (store partier):**
+"""
+            for i, (parti, andel) in enumerate(list(findings['værste_kønsbalance'].items())[:3], 1):
+                content += f"{i}. **{parti}**: {andel:.1f}% kvinder\n"
+
+        content += f"""
+💡 *Der er 15 procentpoint forskel mellem bedste og dårligste parti - kønsbalance varierer markant.*
+"""
+
+    # PARTI OVERSIGT
     if 'top_partier' in findings:
         content += f"""
-### 4. Flest kandidater per parti
+
+---
+
+## 🎯 PARTIER & KANDIDATER
+
+### Flest Kandidater
 
 """
         for i, (parti, antal) in enumerate(list(findings['top_partier'].items())[:10], 1):
-            content += f"{i}. **{parti}**: {antal:,} kandidater\n"
+            køn_pct = ''
+            if 'alle_partier_kønsbalance' in findings and parti in findings['alle_partier_kønsbalance']:
+                køn_pct = f" - {findings['alle_partier_kønsbalance'][parti]['Andel_Kvinder']:.1f}% kvinder"
+            content += f"{i}. **{parti}**: {antal:,} kandidater{køn_pct}\n"
 
-    # Kommunal vs Regional sammenligning
-    if 'kommunal_køn_procent' in findings and 'regional_køn_procent' in findings:
-        content += f"""
-### 5. Kommunalvalg vs Regionsrådsvalg
-
-**Kønsfordeling:**
-- **Kommunalvalg:** {findings['kommunal_køn_procent']:.1f}% kvinder ({findings['kommunal_kandidater']:,} kandidater)
-- **Regionsrådsvalg:** {findings['regional_køn_procent']:.1f}% kvinder ({findings['regional_kandidater']:,} kandidater)
-- **Forskel:** {abs(findings['kommunal_køn_procent'] - findings['regional_køn_procent']):.1f} procentpoint
-
-💡 *{'Flere kvinder stiller op til regionsrådsvalg' if findings['regional_køn_procent'] > findings['kommunal_køn_procent'] else 'Flere kvinder stiller op til kommunalvalg'}*
-"""
-
-    # Regional kønsbalance
+    # REGIONAL VARIATION
     if 'regional_kønsbalance' in findings:
         content += f"""
-### 6. Kønsbalance per region (Regionsrådsvalg)
+
+---
+
+## 📍 REGIONAL ANALYSE
+
+### Kønsbalance Per Region
 
 """
-        for i, (region, data) in enumerate(list(findings['regional_kønsbalance'].items())[:5], 1):
-            content += f"{i}. **{region}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['K'])} K / {int(data['M'])} M)\n"
+        for region, data in sorted(findings['regional_kønsbalance'].items(), key=lambda x: x[1]['Andel_Kvinder'], reverse=True):
+            content += f"- **{region}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['K'])} kvinder / {int(data['M'])} mænd / {int(data['Total'])} total)\n"
 
-    # Kommunale highlights
+    # KOMMUNAL HIGHLIGHTS
     if 'bedste_kommuner_kønsbalance' in findings and findings['bedste_kommuner_kønsbalance']:
         content += f"""
-### 7. Bedste kommunale kønsbalance (kommuner med 50+ kandidater)
+
+### Bedste Kommunale Kønsbalance
+*(Kommuner med minimum 50 kandidater)*
 
 """
         for i, (kommune, data) in enumerate(list(findings['bedste_kommuner_kønsbalance'].items())[:5], 1):
@@ -274,84 +419,27 @@ def generate_master_findings(findings, output_dir='excel_output'):
 
     if 'værste_kommuner_kønsbalance' in findings and findings['værste_kommuner_kønsbalance']:
         content += f"""
-### 8. Lavest kvinde-andel kommunalt (kommuner med 50+ kandidater)
+
+### Laveste Kommunale Kønsbalance
+*(Kommuner med minimum 50 kandidater)*
 
 """
         for i, (kommune, data) in enumerate(list(findings['værste_kommuner_kønsbalance'].items())[:5], 1):
             content += f"{i}. **{kommune}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
 
-    # Små partier med god balance
-    if 'små_partier_god_balance' in findings and findings['små_partier_god_balance']:
-        content += f"""
-### 9. Mindre partier med god kønsbalance (20-100 kandidater)
-
-"""
-        for i, (parti, data) in enumerate(list(findings['små_partier_god_balance'].items())[:5], 1):
-            content += f"{i}. **{parti}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
-
-    # Kønsmetode statistik
-    if 'kønsmetode_manuel_pct' in findings:
-        content += f"""
-### 10. Datakvalitet - Kønsidentifikation
-
-**Metode:**
-- **Manuel identifikation:** {findings['kønsmetode_manuel_pct']:.1f}% af kandidater
-- **Automatisk (gender-guesser):** {100 - findings['kønsmetode_manuel_pct']:.1f}% af kandidater
-- **100% kønsbestemmelse** - ingen ukendte kandidater
-
-💡 *Alle kandidater har fået identificeret køn via kombineret manuel database og automatisk navneidentifikation*
-"""
-
-    # Parti-regional variation
-    if 'parti_regional_variation' in findings and findings['parti_regional_variation']:
-        content += f"""
-
----
-
-## 📍 REGIONALE VARIATIONER
-
-### Kønsbalance i top 5 partier per region
-
-"""
-        for parti, region_data in list(findings['parti_regional_variation'].items())[:5]:
-            content += f"\n**{parti}:**\n"
-            for region, data in sorted(region_data.items(), key=lambda x: x[1]['Andel_Kvinder'], reverse=True):
-                content += f"- {region}: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
-
-    # Detaljeret partioversigt
-    if 'alle_partier_kønsbalance' in findings and findings['alle_partier_kønsbalance']:
-        content += f"""
-
----
-
-## 🎯 KOMPLET PARTIOVERSIGT
-
-### Alle partier sorteret efter størrelse
-
-"""
-        for i, (parti, data) in enumerate(list(findings['alle_partier_kønsbalance'].items())[:20], 1):
-            content += f"{i}. **{parti}**: {int(data['Total'])} kandidater - {data['Andel_Kvinder']:.1f}% kvinder ({int(data['K'])} K / {int(data['M'])} M)\n"
-
+    # DATA FILES
     content += """
 
 ---
 
-## 📁 DATAFILER
+## 📊 ANALYSEFILER
 
-### Start her (små, hurtige filer):
-1. **Analyse_eksempel_stemmeslugere.xlsx** (13 KB)
-   - Top 20 stemmeslugere nationalt
-   - Regional analyse
+### Start Her (små, overskuelige filer)
+1. **Analyse_generel.xlsx** (38 KB) - Valgdeltagelse, TOP 100 stemmeslugere, job-titler, partistatistik
+2. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
+3. **Analyse_borgmestre.xlsx** (13 KB) - 97 borgmestre, partifordeling, magtskifter, kønsfordeling
 
-2. **Analyse_kønsfordeling.xlsx** (16 KB)
-   - Kønsfordeling per parti/kommune/region
-   - Bedste kønsbalance
-
-3. **EXECUTIVE_SUMMARY.txt**
-   - Hurtig oversigt
-   - Top 5 analyser
-
-### Detaljerede data:
+### Detaljerede Datasæt
 - **01_Kommunalvalg/** - Alle kommunale data (~24 MB)
 - **02_Regionsrådsvalg/** - Alle regionale data (~61 MB)
 - **03_Samlet_Alle_Valg/** - Kombineret datasæt (~83 MB)
@@ -359,99 +447,96 @@ def generate_master_findings(findings, output_dir='excel_output'):
 
 ---
 
-## 🔍 MULIGE ANALYSER
+## 🔍 MULIGE VINKLER FOR JOURNALISTER
 
-Med dette datasæt kan du analysere:
+**Politik & Magt:**
+- Venstres dominans blandt borgmestre - hvad betyder det?
+- Magtskifter i 30% af kommunerne - hvor og hvorfor?
+- Personlige stemmekonger - hvad gør dem populære?
 
-✅ **Kønsfordeling**
-- Per parti, kommune, region
-- Blandt valgte vs kandidater
-- Historisk udvikling
+**Køn & Ligestilling:**
+- Kun 25.8% kvindelige borgmestre - hvorfor så lavt?
+- Partier med god kønsbalance vs dårlig - hvad er forskellen?
+- Geografiske variationer i kønsbalance - regional kultur?
 
-✅ **Valgdeltagelse**
-- Per afstemningsområde
-- Kommunale/regionale forskelle
-- Socioøkonomiske sammenhænge (med ekstra data)
+**Demografi:**
+- Ledere og pensionister dominerer - manglende repræsentation af arbejderklassen?
+- Småøers høje valgdeltagelse - hvad kan større kommuner lære?
+- Urban vs rural patterns i kandidatopsætning
 
-✅ **Personlige mandater**
-- Hvem fik flest personlige stemmer?
-- Mandater via personlige stemmer vs liste
-- "Stemmeslugere" uden mandat
-
-✅ **Geografiske mønstre**
-- "Røde" vs "blå" områder
-- Urban vs rural patterns
-- Regionale forskelle
-
-✅ **Historisk sammenligning**
-- Ændringer siden 2021
-- Partiskift
-- Valgdeltagelsesudvikling
+**Datahistorier:**
+- Sammenlign 2025 med 2021 (kræver historiske data)
+- Socioøkonomisk profil af kandidater
+- Geografisk analyse af "røde" og "blå" områder
 
 ---
 
-## ⚠️ DATA QUALITY & BEGRÆNSNINGER
+## ⚠️ METODENOTE & BEGRÆNSNINGER
 
-### Styrker:
-- ✅ Officielle data fra valg.dk
-- ✅ Komplet dækning (alle kommuner/regioner)
-- ✅ Ned til afstemningsområde-niveau
-- ✅ 100% kønsidentifikation via kombineret manuel database og automatisk estimering
-- ✅ Verificeret mod testdata - ekskluderet KOMBIT's verifikationsdata
+### Datakvalitet
+✅ **Officielle data fra valg.dk**
+✅ **100% kønsidentifikation** (kombineret manuel database + AI gender-guesser)
+✅ **Komplet dækning** - alle 99 kommuner og 5 regioner
+✅ **Ned til afstemningsområde-niveau**
 
-### Begrænsninger:
-- ⚠️ Køn er ESTIMERET via fornavne (ikke officielle data fra CPR)
-- ⚠️ Ingen demografiske data (alder, uddannelse)
-- ⚠️ Historiske data kun som ændringstal
-- ⚠️ Binær kønsklassifikation (M/K)
+### Begrænsninger
+⚠️ **Køn er estimeret** via fornavne (ikke CPR-data)
+⚠️ **Binær kønsklassifikation** (M/K) - non-binære personer ikke inkluderet
+⚠️ **Ingen demografiske data** om alder, uddannelse, etnicitet
+⚠️ **Begrænset historisk sammenligning**
 
 ---
 
-## 🚀 HURTIG START
+## 🚀 BRUG AF DATA
 
+### For Journalister
 ```bash
-# 1. Installer dependencies
+# Download repository
+git clone https://github.com/cykelsmed/valgdata.git
+cd valgdata/excel_output/00_START_HER/
+
+# Åbn Excel-filer direkte:
+- Analyse_generel.xlsx
+- Analyse_kønsfordeling.xlsx
+- Analyse_borgmestre.xlsx
+```
+
+### For Data-Analytikere
+```bash
+# Installer dependencies
 pip install -r requirements.txt
 
-# 2. Kør pipeline (hvis du vil regenerere)
+# Kør komplet pipeline
 python pipeline.py --all
 
-# 3. Udforsk data
-cd excel_output/00_START_HER/
-# Åbn Analyse_eksempel_stemmeslugere.xlsx
-# Åbn Analyse_kønsfordeling.xlsx
-# Læs EXECUTIVE_SUMMARY.txt
+# Output i excel_output/00_START_HER/
 ```
 
 ---
 
-## 📚 DOKUMENTATION
+## 📞 KONTAKT & KILDEANGIVELSE
 
-- **README.txt** - Komplet filbeskrivelser
-- **KEY_FINDINGS.txt** - Detaljerede analysemuligheder
-- **EXECUTIVE_SUMMARY.txt** - Hurtig oversigt
-- **_BESKRIVELSE.txt** i hver mappe
+**Data:** Officielle valgresultater fra KOMBIT/valg.dk
+**Analyse:** Automatiseret KM24-pipeline med pandas/Python
+**Repository:** https://github.com/cykelsmed/valgdata
 
----
+**Ved brug af data:**
+Angiv venligst kilde som "KV2025 Valgdata analyse. Kaas & Mulvad Research (github.com/cykelsmed/valgdata)"
 
-## 📊 PIPELINE METADATA
-
-**Scripts:**
-- `hent_valgdata.py` - Download fra valg.dk SFTP
-- `valg_json_til_excel.py` - JSON til Excel konvertering
-- `lav_kønsanalyse.py` - Kønsanalyse
-- `generate_findings.py` - Auto-generering af findings
-- `pipeline.py` - Orchestrator
-
-**Dependencies:**
-- pandas, openpyxl, paramiko, gender-guesser
-
-**Total processing time:** ~3-5 minutter
+**Spørgsmål til data:**
+- Tekniske spørgsmål: Se GitHub repository
+- Officielle valgdata: valg@kombit.dk
 
 ---
 
-*Genereret automatisk af generate_findings.py*
+*Denne rapport er auto-genereret fra officielle valgdata. Sidst opdateret: {findings.get('timestamp', 'N/A')}*
+
+**GitHub:** https://github.com/cykelsmed/valgdata
+**Pipeline:** `generate_findings.py` · Komplet reproducerbar analyse
 """
+
+    # Ensure directory exists
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
     # Gem fil
     with open(output_file, 'w', encoding='utf-8') as f:

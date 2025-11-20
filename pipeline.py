@@ -122,6 +122,20 @@ class Pipeline:
         cmd = ['python3', 'lav_generel_analyse.py', '--output-dir', str(self.output_dir)]
         return self.run_command(cmd, "Generel Analyse")
 
+    def analyze_borgmestre(self):
+        """Parse og analyser borgmester-data"""
+        self.log("👔 Laver borgmester-analyse...")
+
+        # Parse borgmestre.md først
+        if not Path('borgmestre_parsed.csv').exists():
+            cmd_parse = ['python3', 'parse_borgmestre.py']
+            if not self.run_command(cmd_parse, "Parsing borgmestre.md"):
+                return False
+
+        # Lav analyse
+        cmd_analyze = ['python3', 'lav_borgmester_analyse.py', '--output-dir', str(self.output_dir)]
+        return self.run_command(cmd_analyze, "Borgmester Analyse")
+
     def generate_findings(self):
         """Generer findings og MASTER_FINDINGS.md"""
         self.log("📊 Genererer findings...")
@@ -139,7 +153,9 @@ class Pipeline:
             '01_Kommunalvalg': 'Kommunalvalg data',
             '02_Regionsrådsvalg': 'Regionsrådsvalg data',
             '03_Samlet_Alle_Valg': 'Samlet data',
-            '04_Reference_Geografi': 'Geografiske data'
+            '04_Reference_Geografi': 'Geografiske data',
+            '05_Valgdeltagelse_Kommunal': 'Valgdeltagelse per opstillingskreds - Kommunalvalg',
+            '06_Valgdeltagelse_Regional': 'Valgdeltagelse per opstillingskreds - Regionsrådsvalg'
         }
 
         for folder_name, description in folders.items():
@@ -147,18 +163,69 @@ class Pipeline:
             folder_path.mkdir(exist_ok=True)
             self.log(f"  ✓ {folder_name}/ - {description}")
 
-        # Flyt analyse-filer til START_HER
-        for file in ['Analyse_kønsfordeling.xlsx', 'Analyse_generel.xlsx',
-                     'Analyse_eksempel_stemmeslugere.xlsx',
-                     'MASTER_FINDINGS.md', 'KEY_FINDINGS.txt', 'EXECUTIVE_SUMMARY.txt',
-                     'KEY_FINDINGS_BULLETS.txt', '_LÆS_MIG.txt']:
+        # Flyt analyse-filer til START_HER (hvis de ikke allerede er der)
+        # Note: MASTER_FINDINGS.md skrives nu direkte til 00_START_HER af generate_findings.py
+        for file in ['Analyse_kønsfordeling.xlsx', 'Analyse_generel.xlsx', 'Analyse_borgmestre.xlsx']:
             src = self.output_dir / file
             if src.exists():
                 dst = self.output_dir / '00_START_HER' / file
                 shutil.copy2(src, dst)
                 self.log(f"  → {file} → 00_START_HER/")
 
-        self.log("✅ Filorganisering færdig")
+        # Organiser alle Excel-filer i root
+        self.log("\n📦 Organiserer Excel-filer...")
+        file_count = {'kommunal': 0, 'regional': 0, 'samlet': 0, 'geografi': 0, 'valgdelt_k': 0, 'valgdelt_r': 0}
+
+        for excel_file in self.output_dir.glob('*.xlsx'):
+            filename = excel_file.name
+
+            # Skip analyse-filer (allerede håndteret)
+            if filename.startswith('Analyse_'):
+                continue
+
+            # Valgdeltagelse-filer (2500+ filer)
+            if filename.startswith('valgdeltagelse-Kommunalvalg-'):
+                dst = self.output_dir / '05_Valgdeltagelse_Kommunal' / filename
+                shutil.move(str(excel_file), str(dst))
+                file_count['valgdelt_k'] += 1
+            elif filename.startswith('valgdeltagelse-Regionsrådsvalg-'):
+                dst = self.output_dir / '06_Valgdeltagelse_Regional' / filename
+                shutil.move(str(excel_file), str(dst))
+                file_count['valgdelt_r'] += 1
+
+            # Kommunalvalg data
+            elif '_KOMMUNAL_' in filename:
+                dst = self.output_dir / '01_Kommunalvalg' / filename
+                shutil.move(str(excel_file), str(dst))
+                file_count['kommunal'] += 1
+
+            # Regionsrådsvalg data
+            elif '_REGIONAL_' in filename:
+                dst = self.output_dir / '02_Regionsrådsvalg' / filename
+                shutil.move(str(excel_file), str(dst))
+                file_count['regional'] += 1
+
+            # Samlet data (ALLE_VALG eller resultater_per_kommune_region)
+            elif '_ALLE_VALG_' in filename or filename.startswith('resultater_per_'):
+                dst = self.output_dir / '03_Samlet_Alle_Valg' / filename
+                shutil.move(str(excel_file), str(dst))
+                file_count['samlet'] += 1
+
+            # Geografiske reference-filer
+            elif any(x in filename for x in ['Kommune-', 'Region-', 'Afstemningsomraade-',
+                                              'Opstillingskreds-', 'Storkreds-', 'Valglandsdel-']):
+                dst = self.output_dir / '04_Reference_Geografi' / filename
+                shutil.move(str(excel_file), str(dst))
+                file_count['geografi'] += 1
+
+        self.log(f"\n  ✓ Kommunalvalg: {file_count['kommunal']} filer")
+        self.log(f"  ✓ Regionsrådsvalg: {file_count['regional']} filer")
+        self.log(f"  ✓ Samlet data: {file_count['samlet']} filer")
+        self.log(f"  ✓ Geografiske data: {file_count['geografi']} filer")
+        self.log(f"  ✓ Valgdeltagelse Kommunal: {file_count['valgdelt_k']} filer")
+        self.log(f"  ✓ Valgdeltagelse Regional: {file_count['valgdelt_r']} filer")
+
+        self.log("\n✅ Filorganisering færdig")
         return True
 
     def print_summary(self):
@@ -265,6 +332,8 @@ Eksempler:
         if not pipeline.analyze_gender():
             success = False
         if not pipeline.analyze_general():
+            success = False
+        if not pipeline.analyze_borgmestre():
             success = False
 
     # Findings

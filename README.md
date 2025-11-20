@@ -12,6 +12,7 @@ Komplet automatiseret pipeline til analyse af danske valgdata (Kommunal- og Regi
 - **Erhvervsanalyse** - Job-titler og erhvervsfordeling per parti
 - **Partistatistik** - Kandidater, stemmer og gennemsnit
 - **Geografisk analyse** - Lokale vs eksterne kandidater
+- **Borgmester-analyse** - Partifordeling, magtskifter, kønsfordeling blandt borgmestre
 - **Auto-genererede findings** i MASTER_FINDINGS.md
 - **Komplet pipeline** - én kommando kører alt
 
@@ -31,10 +32,13 @@ cd excel_output/00_START_HER/
 ## 📊 Key Findings (2025)
 
 - **10,365 kandidater** (98 kommuner, 5 regioner)
+- **97 borgmestre valgt** - Venstre (42), Socialdemokratiet (22), Konservative (19)
+- **57.7% genvalgt** - 30.9% magtskifte, 11.3% nyvalgt
 - **Top stemmemagnet:** Anders Winnerskjold (Socialdemokratiet, Aarhus) med 38,064 stemmer
 - **Højeste valgdeltagelse:** Fanø & Læsø Kommune (85.7%)
 - **Mest almindelige erhverv:** Direktør/Leder (13.2%), Pensionist (11.3%)
-- **Kønsfordeling:** 65.3% mænd, 34.7% kvinder (100% kendt køn!)
+- **Kønsfordeling kandidater:** 65.3% mænd, 34.7% kvinder (100% kendt køn!)
+- **Kønsfordeling borgmestre:** 74.2% mænd, 25.8% kvinder
 - **Bedste kønsbalance:** Alternativet (48.3% kvinder)
 - **Flest kandidater:** Socialdemokratiet (1,630 kandidater)
 - **Lokale kandidater:** 22.5% bor i samme kommune som de stiller op i
@@ -42,15 +46,18 @@ cd excel_output/00_START_HER/
 ## 📁 Pipeline Outputs
 
 ### Start her (små filer i `00_START_HER/`):
-1. **MASTER_FINDINGS.md** - Komplet overblik over alle findings (stemmeslugere, valgdeltagelse, køn, erhverv)
+1. **MASTER_FINDINGS.md** - Komplet overblik over alle findings (stemmeslugere, valgdeltagelse, køn, erhverv, borgmestre)
 2. **Analyse_generel.xlsx** (38 KB) - TOP 100 stemmeslugere, valgdeltagelse, job-titler, partistatistik, geografi
-3. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
+3. **Analyse_borgmestre.xlsx** (13 KB) - 97 borgmestre, partifordeling, magtskifter, kønsfordeling
+4. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
 
 ### Detaljerede data:
-- **01_Kommunalvalg/** - Alle kommunale data (~24 MB)
-- **02_Regionsrådsvalg/** - Alle regionale data (~61 MB)
-- **03_Samlet_Alle_Valg/** - Kombineret datasæt (~83 MB)
-- **04_Reference_Geografi/** - Geografiske data
+- **01_Kommunalvalg/** - Alle kommunale data (~59 MB)
+- **02_Regionsrådsvalg/** - Alle regionale data (~130 MB)
+- **03_Samlet_Alle_Valg/** - Kombineret datasæt (~200 MB)
+- **04_Reference_Geografi/** - Geografiske reference-filer (~196 KB)
+- **05_Valgdeltagelse_Kommunal/** - 1,283 valgdeltagelse-filer per opstillingskreds (~10 MB)
+- **06_Valgdeltagelse_Regional/** - 1,223 valgdeltagelse-filer per opstillingskreds (~9.6 MB)
 
 ## 🛠️ Scripts
 
@@ -61,6 +68,8 @@ cd excel_output/00_START_HER/
 | `valg_json_til_excel.py` | JSON → Excel med kønsestimering |
 | `lav_kønsanalyse.py` | Generer kønsanalyse per parti/kommune |
 | `lav_generel_analyse.py` | Generel analyse (valgdeltagelse, job, stemmeslugere) |
+| `parse_borgmestre.py` | Parse borgmestre.md til struktureret CSV |
+| `lav_borgmester_analyse.py` | Borgmester-analyse (partifordeling, magtskifter, køn) |
 | `generate_findings.py` | Auto-generer MASTER_FINDINGS.md |
 
 ## 📋 Pipeline Options
@@ -163,7 +172,20 @@ Forbedringsforslag:
 
 Fri til brug. Data fra valg.dk er offentligt tilgængelige.
 
-## 📞 Kontakt
+## 📞 Kontakt & Kildeangivelse
 
-**Spørgsmål til data:** valg@kombit.dk
-**Repository:** https://github.com/cykelsmed/valgdata
+**GitHub Repository:** https://github.com/cykelsmed/valgdata
+
+**Data:** Officielle valgresultater fra KOMBIT/valg.dk
+**Analyse:** Automatiseret pipeline med pandas/Python
+
+**Ved brug af data:**
+Angiv venligst kilde som "Valgdata 2025 analyse (github.com/cykelsmed/valgdata)"
+
+**Spørgsmål:**
+- Tekniske spørgsmål: Se GitHub repository
+- Officielle valgdata: valg@kombit.dk
+
+---
+
+**⭐ Star projektet på GitHub hvis du bruger dataene!**
