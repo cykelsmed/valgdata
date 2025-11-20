@@ -150,5 +150,9 @@ def organiser_filer():
     print(f"  03_Samlet_Alle_Valg: {len(list(samlet_dir.glob('*.xlsx')))} filer")
     print(f"  04_Reference_Geografi: {len(list(geografi_dir.glob('*.xlsx')))} filer")
 
-if __name__ == '__main__':
+def main():
+    """Main funktion til brug i pipeline"""
     organiser_filer()
+
+if __name__ == '__main__':
+    main()

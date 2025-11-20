@@ -11,12 +11,21 @@ Usage:
     python pipeline.py --clean --all       # Slet gamle filer og kør alt
 """
 
-import subprocess
 import sys
 import shutil
 from pathlib import Path
 import argparse
 from datetime import datetime
+
+# Import alle pipeline-moduler
+from hent_valgdata import main as hent_data_main
+from valg_json_til_excel import main as convert_main
+from lav_kønsanalyse import main as kønsanalyse_main
+from lav_generel_analyse import main as generel_analyse_main
+from lav_borgmester_analyse import main as borgmester_analyse_main
+from parse_borgmestre import main as parse_borgmestre_main
+from generate_findings import main as generate_findings_main
+from validate_data import main as validate_data_main
 
 class Pipeline:
     def __init__(self, json_dir='json_data', output_dir='excel_output'):
@@ -34,37 +43,21 @@ class Pipeline:
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(log_msg + '\n')
 
-    def run_command(self, cmd, description):
-        """Kør en kommando og log resultatet"""
+    def run_function(self, func, description, *args, **kwargs):
+        """Kør en funktion og log resultatet"""
         self.log(f"{'='*60}")
         self.log(f"Starter: {description}")
-        self.log(f"Kommando: {' '.join(cmd)}")
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-
-            if result.stdout:
-                print(result.stdout)
-
+            result = func(*args, **kwargs)
             self.log(f"✅ Succes: {description}", 'SUCCESS')
             return True
 
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             self.log(f"❌ Fejl: {description}", 'ERROR')
-            self.log(f"Return code: {e.returncode}", 'ERROR')
-            if e.stdout:
-                self.log(f"STDOUT: {e.stdout}", 'ERROR')
-            if e.stderr:
-                self.log(f"STDERR: {e.stderr}", 'ERROR')
-            return False
-
-        except FileNotFoundError:
-            self.log(f"❌ Kommando ikke fundet: {cmd[0]}", 'ERROR')
+            self.log(f"Exception: {type(e).__name__}: {str(e)}", 'ERROR')
+            import traceback
+            self.log(f"Traceback:\n{traceback.format_exc()}", 'ERROR')
             return False
 
     def clean(self):
@@ -92,8 +85,7 @@ class Pipeline:
 
         self.json_dir.mkdir(exist_ok=True)
 
-        cmd = ['python3', 'hent_valgdata.py', str(self.json_dir)]
-        return self.run_command(cmd, "Download valgdata fra valg.dk")
+        return self.run_function(hent_data_main, "Download valgdata fra valg.dk", str(self.json_dir))
 
     def convert(self):
         """Konverter JSON til Excel"""
@@ -105,22 +97,20 @@ class Pipeline:
 
         self.output_dir.mkdir(exist_ok=True)
 
-        cmd = ['python3', 'valg_json_til_excel.py', str(self.json_dir), str(self.output_dir)]
-        return self.run_command(cmd, "Konvertering til Excel med kønsestimering")
+        return self.run_function(convert_main, "Konvertering til Excel med kønsestimering", 
+                                str(self.json_dir), str(self.output_dir))
 
     def analyze_gender(self):
         """Lav kønsanalyse"""
         self.log("👥 Laver kønsanalyse...")
 
-        cmd = ['python3', 'lav_kønsanalyse.py', '--output-dir', str(self.output_dir)]
-        return self.run_command(cmd, "Kønsanalyse")
+        return self.run_function(kønsanalyse_main, "Kønsanalyse", str(self.output_dir))
 
     def analyze_general(self):
         """Lav generel analyse (valgdeltagelse, job, stemmeslugere)"""
         self.log("📊 Laver generel analyse (valgdeltagelse, job, stemmeslugere)...")
 
-        cmd = ['python3', 'lav_generel_analyse.py', '--output-dir', str(self.output_dir)]
-        return self.run_command(cmd, "Generel Analyse")
+        return self.run_function(generel_analyse_main, "Generel Analyse", str(self.output_dir))
 
     def analyze_borgmestre(self):
         """Parse og analyser borgmester-data"""
@@ -128,27 +118,23 @@ class Pipeline:
 
         # Parse borgmestre.md først
         if not Path('borgmestre_parsed.csv').exists():
-            cmd_parse = ['python3', 'parse_borgmestre.py']
-            if not self.run_command(cmd_parse, "Parsing borgmestre.md"):
+            if not self.run_function(parse_borgmestre_main, "Parsing borgmestre.md"):
                 return False
 
         # Lav analyse
-        cmd_analyze = ['python3', 'lav_borgmester_analyse.py', '--output-dir', str(self.output_dir)]
-        return self.run_command(cmd_analyze, "Borgmester Analyse")
+        return self.run_function(borgmester_analyse_main, "Borgmester Analyse", str(self.output_dir))
 
     def generate_findings(self):
         """Generer findings og MASTER_FINDINGS.md"""
         self.log("📊 Genererer findings...")
 
-        cmd = ['python3', 'generate_findings.py', '--output-dir', str(self.output_dir)]
-        return self.run_command(cmd, "Findings generation")
+        return self.run_function(generate_findings_main, "Findings generation", str(self.output_dir))
 
     def validate_data(self):
         """Valider data for fejl og realistiske værdier"""
         self.log("✅ Validerer data...")
 
-        cmd = ['python3', 'validate_data.py', '--output-dir', str(self.output_dir)]
-        return self.run_command(cmd, "Data validering")
+        return self.run_function(validate_data_main, "Data validering", str(self.output_dir))
 
     def organize_files(self):
         """Organiser filer i mapper"""

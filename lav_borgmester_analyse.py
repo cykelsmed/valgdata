@@ -6,15 +6,7 @@ Laver borgmester-analyse baseret på parsed borgmester-data
 import pandas as pd
 from pathlib import Path
 import sys
-import glob
-
-def find_latest_file(pattern):
-    """Find den nyeste fil der matcher pattern"""
-    files = glob.glob(pattern)
-    if not files:
-        return None
-    files.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
-    return files[0]
+from utils import find_latest_file, load_parquet
 
 def lav_borgmester_analyse(output_dir='excel_output'):
     """Lav omfattende borgmester-analyse"""
@@ -29,16 +21,23 @@ def lav_borgmester_analyse(output_dir='excel_output'):
     borgmestre = pd.read_csv('borgmestre_parsed.csv')
     print(f"Læste {len(borgmestre)} borgmestre")
 
-    # Find kandidat-fil med kønsdata
+    # Find kandidat-fil med kønsdata - Parquet først
+    parquet_dir = Path(output_dir) / 'parquet'
     samlet_dir = Path(output_dir) / '03_Samlet_Alle_Valg'
-    kandidater_fil = find_latest_file(f'{samlet_dir}/kandidater_ALLE_VALG_*.xlsx')
+    
+    kandidater_fil = find_latest_file(f'{parquet_dir}/kandidater_ALLE_VALG_*.parquet')
+    if not kandidater_fil:
+        kandidater_fil = find_latest_file(f'{samlet_dir}/kandidater_ALLE_VALG_*.xlsx')
     if not kandidater_fil:
         kandidater_fil = find_latest_file(f'{output_dir}/kandidater_ALLE_VALG_*.xlsx')
 
     # Match med kønsdata hvis muligt
     if kandidater_fil:
         print(f"\nMatcher med kønsdata fra {Path(kandidater_fil).name}...")
-        kandidater = pd.read_excel(kandidater_fil)
+        if kandidater_fil.endswith('.parquet'):
+            kandidater = load_parquet(kandidater_fil)
+        else:
+            kandidater = pd.read_excel(kandidater_fil)
 
         # Opret kønsmap baseret på fornavn
         koen_map = {}
@@ -142,6 +141,10 @@ def lav_borgmester_analyse(output_dir='excel_output'):
 
     print(f"\n📁 Fil gemt: {output_file}")
 
+def main(output_dir='excel_output'):
+    """Main funktion til brug i pipeline"""
+    lav_borgmester_analyse(output_dir)
+
 if __name__ == '__main__':
     import argparse
 
@@ -150,4 +153,4 @@ if __name__ == '__main__':
                        help='Output directory (default: excel_output)')
 
     args = parser.parse_args()
-    lav_borgmester_analyse(args.output_dir)
+    main(args.output_dir)

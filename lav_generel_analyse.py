@@ -246,10 +246,15 @@ def lav_generel_analyse(output_dir='excel_output'):
     print(f"✅ Generel analyse gemt: {output_file}")
     return True
 
+def main(output_dir='excel_output'):
+    """Main funktion til brug i pipeline"""
+    success = lav_generel_analyse(output_dir)
+    return success
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Lav generel valganalyse')
     parser.add_argument('--output-dir', default='excel_output', help='Output directory')
     args = parser.parse_args()
 
-    success = lav_generel_analyse(args.output_dir)
+    success = main(args.output_dir)
     sys.exit(0 if success else 1)

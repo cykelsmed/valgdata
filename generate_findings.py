@@ -697,7 +697,21 @@ Angiv venligst kilde som "KV2025 Valgdata analyse. Kaas & Mulvad Research (githu
     print(f"✅ MASTER_FINDINGS.md gemt: {output_file}")
     return output_file
 
-def main():
+def main(output_dir='excel_output'):
+    """Main funktion til brug i pipeline"""
+    # Analyser data
+    findings = analyze_data(output_dir)
+
+    if findings:
+        # Generer MASTER_FINDINGS.md
+        generate_master_findings(findings, output_dir)
+        print("\n✅ Findings genereret!")
+        return True
+    else:
+        print("\n❌ Kunne ikke generere findings")
+        return False
+
+if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Generer findings fra valgdata')
@@ -706,16 +720,5 @@ def main():
 
     args = parser.parse_args()
 
-    # Analyser data
-    findings = analyze_data(args.output_dir)
-
-    if findings:
-        # Generer MASTER_FINDINGS.md
-        generate_master_findings(findings, args.output_dir)
-        print("\n✅ Findings genereret!")
-    else:
-        print("\n❌ Kunne ikke generere findings")
-        sys.exit(1)
-
-if __name__ == '__main__':
-    main()
+    success = main(args.output_dir)
+    sys.exit(0 if success else 1)

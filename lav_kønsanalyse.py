@@ -6,39 +6,37 @@ Laver kønsanalyse baseret på valgdata med estimeret køn
 import pandas as pd
 from pathlib import Path
 import sys
-import glob
-
-def find_latest_file(pattern):
-    """Find den nyeste fil der matcher pattern"""
-    files = glob.glob(pattern)
-    if not files:
-        return None
-    # Sorter efter modificeringstid, nyeste først
-    files.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
-    return files[0]
+from utils import find_latest_file, load_parquet
 
 def lav_kønsanalyse(output_dir='excel_output'):
     """Lav omfattende kønsanalyse af valgdata"""
 
-    # Find nyeste filer automatisk (både i root og i 03_Samlet_Alle_Valg/)
+    # Find nyeste filer automatisk (Parquet først, derefter Excel fallback)
     print("Finder nyeste datafiler...")
+    parquet_dir = Path(output_dir) / 'parquet'
     samlet_dir = Path(output_dir) / '03_Samlet_Alle_Valg'
 
-    # Prøv først i 03_Samlet_Alle_Valg/, derefter i root
-    kandidater_fil = find_latest_file(f'{samlet_dir}/kandidater_ALLE_VALG_*.xlsx')
+    # Søg efter Parquet først, derefter Excel
+    kandidater_fil = find_latest_file(f'{parquet_dir}/kandidater_ALLE_VALG_*.parquet')
+    if not kandidater_fil:
+        kandidater_fil = find_latest_file(f'{samlet_dir}/kandidater_ALLE_VALG_*.xlsx')
     if not kandidater_fil:
         kandidater_fil = find_latest_file(f'{output_dir}/kandidater_ALLE_VALG_*.xlsx')
 
-    mandater_kommunal_fil = find_latest_file(f'{samlet_dir}/mandatfordeling_KOMMUNAL_*.xlsx')
+    mandater_kommunal_fil = find_latest_file(f'{parquet_dir}/mandatfordeling_KOMMUNAL_*.parquet')
+    if not mandater_kommunal_fil:
+        mandater_kommunal_fil = find_latest_file(f'{samlet_dir}/mandatfordeling_KOMMUNAL_*.xlsx')
     if not mandater_kommunal_fil:
         mandater_kommunal_fil = find_latest_file(f'{output_dir}/mandatfordeling_KOMMUNAL_*.xlsx')
 
-    mandater_regional_fil = find_latest_file(f'{samlet_dir}/mandatfordeling_REGIONAL_*.xlsx')
+    mandater_regional_fil = find_latest_file(f'{parquet_dir}/mandatfordeling_REGIONAL_*.parquet')
+    if not mandater_regional_fil:
+        mandater_regional_fil = find_latest_file(f'{samlet_dir}/mandatfordeling_REGIONAL_*.xlsx')
     if not mandater_regional_fil:
         mandater_regional_fil = find_latest_file(f'{output_dir}/mandatfordeling_REGIONAL_*.xlsx')
 
     if not kandidater_fil:
-        print(f"❌ Fejl: Kunne ikke finde kandidater_ALLE_VALG_*.xlsx i {output_dir}/")
+        print(f"❌ Fejl: Kunne ikke finde kandidater_ALLE_VALG filer i {output_dir}/")
         sys.exit(1)
 
     print(f"Bruger filer:")
@@ -48,11 +46,28 @@ def lav_kønsanalyse(output_dir='excel_output'):
     if mandater_regional_fil:
         print(f"  • {Path(mandater_regional_fil).name}")
 
-    # Læs kandidat- og mandatdata
+    # Læs kandidat- og mandatdata (auto-detect Parquet vs Excel)
     print("\nLæser data...")
-    kandidater = pd.read_excel(kandidater_fil)
-    mandater_kommunal = pd.read_excel(mandater_kommunal_fil) if mandater_kommunal_fil else None
-    mandater_regional = pd.read_excel(mandater_regional_fil) if mandater_regional_fil else None
+    if kandidater_fil.endswith('.parquet'):
+        kandidater = load_parquet(kandidater_fil)
+    else:
+        kandidater = pd.read_excel(kandidater_fil)
+    
+    if mandater_kommunal_fil:
+        if mandater_kommunal_fil.endswith('.parquet'):
+            mandater_kommunal = load_parquet(mandater_kommunal_fil)
+        else:
+            mandater_kommunal = pd.read_excel(mandater_kommunal_fil)
+    else:
+        mandater_kommunal = None
+    
+    if mandater_regional_fil:
+        if mandater_regional_fil.endswith('.parquet'):
+            mandater_regional = load_parquet(mandater_regional_fil)
+        else:
+            mandater_regional = pd.read_excel(mandater_regional_fil)
+    else:
+        mandater_regional = None
 
     # Fjern "Ukendt" køn fra detaljerede analyser (men behold i totaler)
     kandidater_kendt = kandidater[kandidater['EstimeretKøn'].isin(['M', 'K'])].copy()
@@ -157,6 +172,10 @@ def lav_kønsanalyse(output_dir='excel_output'):
     print(f"   • Ukendt: {total_køn.get('Ukendt', 0)} ({round(total_køn.get('Ukendt', 0)/len(kandidater)*100, 1)}%)")
     print(f"\n📁 Fil gemt: {output_file}")
 
+def main(output_dir='excel_output'):
+    """Main funktion til brug i pipeline"""
+    lav_kønsanalyse(output_dir)
+
 if __name__ == '__main__':
     import argparse
 
@@ -165,4 +184,4 @@ if __name__ == '__main__':
                        help='Output directory (default: excel_output)')
 
     args = parser.parse_args()
-    lav_kønsanalyse(args.output_dir)
+    main(args.output_dir)

@@ -197,17 +197,17 @@ class DataValidator:
 
         print(f"    ✓ Antal kandidater: {antal_kandidater:,}")
 
-def main():
-    """Kør validering"""
+def main(output_dir='excel_output'):
+    """Kør validering - main funktion til brug i pipeline"""
+    validator = DataValidator(output_dir)
+    success = validator.validate_all()
+    return success
+
+if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Valider valgdata')
     parser.add_argument('--output-dir', default='excel_output', help='Output directory')
     args = parser.parse_args()
 
-    validator = DataValidator(args.output_dir)
-    success = validator.validate_all()
-
+    success = main(args.output_dir)
     sys.exit(0 if success else 1)
-
-if __name__ == '__main__':
-    main()
