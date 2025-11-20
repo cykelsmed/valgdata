@@ -1,0 +1,13 @@
+# Valgdata Pipeline - Python Dependencies
+# Danish Election Data Analysis and Processing
+# Install: pip install -r requirements.txt
+
+# Data Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# SFTP Download
+paramiko>=3.0.0
+
+# Gender Estimation
+gender-guesser>=0.4.0
