@@ -1,12 +1,17 @@
 # Valgdata 2025 - Automatiseret Pipeline
 
-Komplet automatiseret pipeline til analyse af danske valgdata (Kommunal- og Regionsrådsvalg 2025) med kønsanalyse.
+Komplet automatiseret pipeline til analyse af danske valgdata (Kommunal- og Regionsrådsvalg 2025) med kønsanalyse, stemmeslugere, valgdeltagelse, erhvervsfordeling og geografisk analyse.
 
 ## 🎯 Features
 
 - **Automatisk SFTP-download** fra valg.dk's offentlige server
 - **JSON til Excel konvertering** med automatisk kønsestimering via fornavne
 - **Kønsanalyse** per parti, kommune og region
+- **Stemmeslugere-analyse** - Top 100 kandidater med flest personlige stemmer
+- **Valgdeltagelse** per kommune og region
+- **Erhvervsanalyse** - Job-titler og erhvervsfordeling per parti
+- **Partistatistik** - Kandidater, stemmer og gennemsnit
+- **Geografisk analyse** - Lokale vs eksterne kandidater
 - **Auto-genererede findings** i MASTER_FINDINGS.md
 - **Komplet pipeline** - én kommando kører alt
 
@@ -26,19 +31,20 @@ cd excel_output/00_START_HER/
 ## 📊 Key Findings (2025)
 
 - **10,365 kandidater** (98 kommuner, 5 regioner)
+- **Top stemmemagnet:** Anders Winnerskjold (Socialdemokratiet, Aarhus) med 38,064 stemmer
+- **Højeste valgdeltagelse:** Fanø & Læsø Kommune (85.7%)
+- **Mest almindelige erhverv:** Direktør/Leder (13.2%), Pensionist (11.3%)
 - **Kønsfordeling:** 65.3% mænd, 34.7% kvinder (100% kendt køn!)
-- **Bedste kønsbalance:** SF (48.5% kvinder)
-- **Lavest andel kvinder:** Liberal Alliance (22.0% kvinder)
+- **Bedste kønsbalance:** Alternativet (48.3% kvinder)
 - **Flest kandidater:** Socialdemokratiet (1,630 kandidater)
+- **Lokale kandidater:** 22.5% bor i samme kommune som de stiller op i
 
 ## 📁 Pipeline Outputs
 
 ### Start her (små filer i `00_START_HER/`):
-1. **MASTER_FINDINGS.md** - Oversigt over alle key findings
-2. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune
-3. **Analyse_generel.xlsx** (38 KB) - Stemmeslugere, valgdeltagelse, job-titler, geografi
-4. **Analyse_eksempel_stemmeslugere.xlsx** (13 KB) - Top 20 stemmeslugere
-5. **EXECUTIVE_SUMMARY.txt** - Hurtig tekstoversigt
+1. **MASTER_FINDINGS.md** - Komplet overblik over alle findings (stemmeslugere, valgdeltagelse, køn, erhverv)
+2. **Analyse_generel.xlsx** (38 KB) - TOP 100 stemmeslugere, valgdeltagelse, job-titler, partistatistik, geografi
+3. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
 
 ### Detaljerede data:
 - **01_Kommunalvalg/** - Alle kommunale data (~24 MB)
