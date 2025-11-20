@@ -20,11 +20,22 @@ def find_latest_file(pattern):
 def lav_kønsanalyse(output_dir='excel_output'):
     """Lav omfattende kønsanalyse af valgdata"""
 
-    # Find nyeste filer automatisk
+    # Find nyeste filer automatisk (både i root og i 03_Samlet_Alle_Valg/)
     print("Finder nyeste datafiler...")
-    kandidater_fil = find_latest_file(f'{output_dir}/kandidater_ALLE_VALG_*.xlsx')
-    mandater_kommunal_fil = find_latest_file(f'{output_dir}/mandatfordeling_KOMMUNAL_*.xlsx')
-    mandater_regional_fil = find_latest_file(f'{output_dir}/mandatfordeling_REGIONAL_*.xlsx')
+    samlet_dir = Path(output_dir) / '03_Samlet_Alle_Valg'
+
+    # Prøv først i 03_Samlet_Alle_Valg/, derefter i root
+    kandidater_fil = find_latest_file(f'{samlet_dir}/kandidater_ALLE_VALG_*.xlsx')
+    if not kandidater_fil:
+        kandidater_fil = find_latest_file(f'{output_dir}/kandidater_ALLE_VALG_*.xlsx')
+
+    mandater_kommunal_fil = find_latest_file(f'{samlet_dir}/mandatfordeling_KOMMUNAL_*.xlsx')
+    if not mandater_kommunal_fil:
+        mandater_kommunal_fil = find_latest_file(f'{output_dir}/mandatfordeling_KOMMUNAL_*.xlsx')
+
+    mandater_regional_fil = find_latest_file(f'{samlet_dir}/mandatfordeling_REGIONAL_*.xlsx')
+    if not mandater_regional_fil:
+        mandater_regional_fil = find_latest_file(f'{output_dir}/mandatfordeling_REGIONAL_*.xlsx')
 
     if not kandidater_fil:
         print(f"❌ Fejl: Kunne ikke finde kandidater_ALLE_VALG_*.xlsx i {output_dir}/")
@@ -125,11 +136,12 @@ def lav_kønsanalyse(output_dir='excel_output'):
     store_partier['Afvigelse fra 50%'] = abs(store_partier['Andel Kvinder %'] - 50)
     bedste_balance = store_partier.sort_values('Afvigelse fra 50%').head(20)
 
-    # Gem til Excel
-    output_fil = f'{output_dir}/Analyse_kønsfordeling.xlsx'
-    print(f"\nGemmer kønsanalyse til {output_fil}...")
+    # Gem til Excel i 00_START_HER/
+    output_file = Path(output_dir) / '00_START_HER' / 'Analyse_kønsfordeling.xlsx'
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    print(f"\nGemmer kønsanalyse til {output_file}...")
 
-    with pd.ExcelWriter(output_fil, engine='openpyxl') as writer:
+    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
         df_oversigt.to_excel(writer, sheet_name='Oversigt', index=False)
         parti_køn.to_excel(writer, sheet_name='Per Parti', index=False)
         kommune_køn.to_excel(writer, sheet_name='Per Kommune (Top 30)', index=False)
@@ -143,7 +155,7 @@ def lav_kønsanalyse(output_dir='excel_output'):
     print(f"   • Mænd: {total_køn.get('M', 0)} ({round(total_køn.get('M', 0)/len(kandidater)*100, 1)}%)")
     print(f"   • Kvinder: {total_køn.get('K', 0)} ({round(total_køn.get('K', 0)/len(kandidater)*100, 1)}%)")
     print(f"   • Ukendt: {total_køn.get('Ukendt', 0)} ({round(total_køn.get('Ukendt', 0)/len(kandidater)*100, 1)}%)")
-    print(f"\n📁 Fil gemt: {output_fil}")
+    print(f"\n📁 Fil gemt: {output_file}")
 
 if __name__ == '__main__':
     import argparse
