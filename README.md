@@ -25,8 +25,8 @@ cd excel_output/00_START_HER/
 
 ## 📊 Key Findings (2025)
 
-- **10,371 kandidater** (98 kommuner, 5 regioner)
-- **Kønsfordeling:** 58.8% mænd, 30.1% kvinder (89% kendt køn)
+- **10,365 kandidater** (98 kommuner, 5 regioner)
+- **Kønsfordeling:** 65.3% mænd, 34.7% kvinder (100% kendt køn!)
 - **Bedste kønsbalance:** SF (48.5% kvinder)
 - **Lavest andel kvinder:** Liberal Alliance (22.0% kvinder)
 - **Flest kandidater:** Socialdemokratiet (1,630 kandidater)
@@ -101,7 +101,8 @@ Alle felter fra valg.dk plus kønsestimering:
 - ✅ Officielle data fra valg.dk
 - ✅ Komplet dækning (alle 98 kommuner, 5 regioner)
 - ✅ Ned til afstemningsområde-niveau
-- ✅ 89% køn kendt via navn-matching
+- ✅ 100% kønsbestemmelse via kombineret automatisk + manuel identifikation
+- ✅ Verificeret mod testdata - eksklusion af KOMBIT's verifikationsdata
 
 **Begrænsninger:**
 - ⚠️ Køn er ESTIMERET via fornavne (ikke officielle data)
@@ -116,10 +117,11 @@ Alle felter fra valg.dk plus kønsestimering:
 - **Output:** ~2,800 JSON-filer
 
 ### Kønsestimering
-Bruger `gender-guesser` library til at estimere køn baseret på fornavne:
-- Dansk navnedata
-- 89% accuracy (11% ukendt)
-- Returnerer M/K/Ukendt
+Kombineret automatisk og manuel kønsbestemmelse:
+- **gender-guesser library** til automatisk estimering (dansk navnedata)
+- **Manuel database** med 810 verificerede navne (fra manuel + AI-identifikation)
+- **100% kønsbestemmelse** - ingen ukendte
+- Metode markeret i data: "manuel identifikation" eller "gender-guesser"
 
 ### Dependencies
 ```

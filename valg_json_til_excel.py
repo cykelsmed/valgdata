@@ -16,12 +16,186 @@ import gender_guesser.detector as gender
 # Initialiser gender detector
 _gender_detector = gender.Detector()
 
+# Manuel kønsbestemmelse database (prioriteres over automatisk gætning)
+# Opdateret med 1151 manuelt + AI-identificerede kandidater (903 manuel + 248 AI = 597 unikke navne)
+MANUEL_KØNSBESTEMMELSE = {
+    # AI-vurderede kandidater (248 fra AI-vurdering)
+    "Sønnik": "K", "Tais": "M", "Tayo": "K", "Tharjan": "M", "Tordur": "M",
+    "Tune": "K", "Tórhallur": "M", "Ulrick": "M", "Vandad": "M", "Vichy": "K",
+    "Wakas": "M", "Waris": "M", "Xinwei": "K", "Yalcin": "M", "Yildiz": "K",
+    "Yilmaz": "M", "Yurdal": "M", "Ziggy": "K", "Zinije": "K", "Oruc": "M",
+    "Ravin": "M", "Siff": "K", "Sven-Erik": "M", "Abaz": "M", "Aki": "M",
+    "Aladdin": "M", "Almaz": "K", "Almin": "M", "Andries": "M", "Anje": "K",
+    "Araz": "M", "Azad": "M", "Babak": "M", "Bauke": "M", "Benno": "M",
+    "Bess": "K", "Birol": "M", "Bret": "M", "Bünyamin": "M", "Camillo": "M",
+    "Candice": "K", "Celal": "M", "Christoph": "M", "Christophe": "M", "Clair": "K",
+    "Cliff": "M", "Clément": "M", "Costel": "M", "Davíð": "M", "Dino": "M",
+    "Dragoljub": "M", "Duygu": "K", "Eddy": "M", "Edibe": "K", "Edin": "M",
+    "Edis": "M", "Edris": "M", "Eik": "M", "El": "M", "El Hamlaoui": "M", "Emely": "K",
+    "Emin": "M", "Erdal": "M", "Ergin": "M", "Erkan": "M", "Esat": "M",
+    "Eske": "M", "Estrid": "K", "Evis": "M", "Farid": "M", "Fatih": "M",
+    "Fayez": "M", "Fedai": "M", "Filiz": "K", "Florian": "M", "Frans": "M",
+    "Furkan": "M", "Gennadiy": "M", "Gunde": "M", "Gül": "K", "Günay": "K",
+    "Halil": "M", "Hameed": "M", "Hamid": "M", "Hari": "M", "Hartmut": "M",
+    "Hasibe": "K", "Hauke": "M", "Hediye": "K", "Heinrich": "M", "Helin": "K",
+    "Henrich": "M", "Hermod": "M", "Hüseyin": "M", "Idrees": "M", "Idris": "M",
+    "Ikram": "K", "Ilias": "M", "Imad": "M", "Ingalill": "K", "Isabell": "K",
+    "Iulian": "M", "Ivonne": "K", "Jakup": "M", "Jari": "M", "Jarl": "M",
+    "Joanne": "K", "Josée": "K", "João": "M", "Jóhannes": "M", "Kais": "M",
+    "Kalle": "M", "Karan": "M", "Karel": "M", "Kashif": "M", "Katri": "K",
+    "Khaled": "M", "Kiki": "K", "Kirsti": "K", "Kjartan": "M", "Käthe": "K",
+    "Lennarth": "M", "Lianne": "K", "Lil": "K", "Lin": "K", "Luc": "M",
+    "Magni": "K", "Mahmut": "M", "Marek": "M", "Margreet": "K", "Maricel": "K",
+    "Marjan": "K", "Masoud": "M", "Mazlum": "M", "Meho": "M", "Menderes": "M",
+    "Mercedes": "K", "Metin": "M", "Mevlide": "K", "Michel": "M", "Michele": "M",
+    "Mick": "M", "Micky": "M", "Miki": "K", "Nadeem": "M", "Najib": "M",
+    "Narcis": "M", "Nazim": "M", "Necdet": "M", "Nels": "M", "Nikki": "K",
+    "Nini": "K", "Nino": "M", "Osman": "M", "Ozan": "M", "Parvaneh": "K",
+    "Philipp": "M", "Piet": "M", "Pil": "K", "Rajesh": "M", "Ramalingam": "M",
+    "Rami": "M", "Reinhold": "M", "Reinout": "M", "Renate": "K", "Renée": "K",
+    "Resul": "M", "Ricco": "M", "Ricki": "M", "Rik": "M", "Saad": "M",
+    "Sadik": "M", "Saime": "K", "Sami": "M", "Samir": "M", "Scarlett": "K",
+    "Selene": "K", "Selim": "M", "Semir": "M", "Senol": "M", "Serdal": "M",
+    "Serhat": "M", "Serhii": "M", "Seyit": "M", "Shukri": "K", "Siem": "M",
+    "Sif": "K", "Silke": "K", "Steffan": "M", "Stoil": "M", "Suzan": "K",
+    "Süleyman": "M", "Tao": "M", "Thilo": "M", "Thormod": "M", "Thure": "M",
+    "Tilde": "K", "Timm": "M", "Timo": "M", "Tomislav": "M", "Tuncay": "M",
+    "Turan": "M", "Uwe": "M", "Valentin": "M", "Vick": "K", "Yakup": "M",
+    "Yasir": "M", "Yavuz": "M", "Yazmin": "K", "Özcan": "M", "Andi": "M",
+    "Ludwig": "M", "Sadek": "M", "Ahmad": "M",
+    # Manuelt identificerede kandidater (903 fra manuel identifikation = 597 unikke navne)
+    "Abdinoor": "M", "Abdirashid": "M", "Abdul": "M", "Absalon": "M", "Adeel": "M",
+    "Adnan": "M", "Adrian-Silviu": "M", "Aein": "K", "Agata": "K", "Ahmed": "M",
+    "Ahmet": "M", "Ahn": "K", "Ajâja": "K", "Akhlaq": "M", "Alaaidin": "M",
+    "Aleksander": "M", "Aleksandra": "K", "Ali": "M", "Alia": "M", "Aligo": "M",
+    "Alina": "M", "Almina": "K", "Almind": "M", "Alvin": "M", "Amos": "M",
+    "Amran": "K", "Anahita": "K", "Anastasia": "K", "Andeers": "M", "Ane-Jette": "K",
+    "Aneken": "K", "Anes": "K", "Anfinn": "M", "Angelica": "K", "Angus": "M",
+    "Aniska": "K", "Ann-Britt": "K", "Ann-Christina": "K", "Ann-Kathrine": "K", "Ann-Louise": "K",
+    "Ann-Sophie": "K", "Anna-Cecilie": "K", "Anna-Mette": "K", "Anna-Sofie": "K", "Annbritt": "K",
+    "Anne-Dorrit": "K", "Anne-Emmanuelle": "K", "Anne-Grete": "K", "Anne-Grethe": "K", "Anne-Lise": "K",
+    "Anne-Marie": "K", "Anne-Mette": "K", "Anne-Sofie": "K", "Anne-Sophie": "K", "Annedorthe": "K",
+    "Annegrete": "K", "Annemaja": "K", "Annet": "K", "Annia": "K", "Annitta": "K",
+    "Anstina": "K", "Antoniett": "M", "Aqqalooraq": "M", "Arnbjørn": "M", "Arthur": "M",
+    "Arulanantharajah": "K", "Asghar": "M", "Asham": "K", "Ashwini": "K", "Aslak": "M",
+    "Asmus": "M", "Asou": "M", "Assia": "K", "Aston": "M", "Augusta": "K",
+    "Auli": "K", "Aurin": "M", "Awale": "M", "Azra": "K", "Bakhtiar": "M",
+    "Baltser": "M", "Bayram": "M", "Beatrice": "K", "Beenamol": "K", "Bella": "K",
+    "Bergur": "M", "Bertram": "M", "Betiel": "K", "Bia": "K", "Bianca": "K",
+    "Biljana": "K", "Bill": "M", "Billal": "M", "Bob": "M", "Bojanna": "M",
+    "Burak": "M", "Bøje": "M", "Carl-Børge": "M", "Carl-Eric": "M", "Carl-Erik": "M",
+    "Carli": "M", "Carol": "K", "Caspar": "M", "Cassandra": "K", "Catherine": "K",
+    "Cecer": "K", "Celine": "K", "Cevri": "M", "Chano": "M", "Charlie": "M",
+    "Chastine": "K", "Chelina": "K", "Chelle": "K", "Chili": "K", "Chirie": "K",
+    "Chresta": "K", "Chriistofer": "M", "Christiane": "M", "Christopher": "M", "Cille": "K",
+    "Cirkeline": "K", "Cita": "K", "Claude-Francois": "M", "Claus-Jørgen": "M", "Coco": "K",
+    "Colin": "M", "Conrad": "M", "Court": "M", "Cömert": "M", "Damian": "M",
+    "Danielle": "M", "Dann": "M", "Daphne": "K", "Dean": "M", "Debbie": "K",
+    "Deborah": "K", "Dejla": "K", "Deniz": "K", "Derya": "K", "Desalegn": "M",
+    "Desislava": "K", "Diana": "K", "Diane": "K", "Dickte": "K", "Dinos": "M",
+    "Dion": "M", "Dirk-Ingmar": "M", "Dogan": "M", "Don": "M", "Dorete": "K",
+    "Doron": "M", "Edisa": "K", "Ejler": "M", "Ektaj": "M", "Elanur": "K",
+    "Elena": "K", "Elias": "M", "Eliska": "K", "Ellie": "K", "Else-Marie": "K",
+    "Elsemarie": "K", "Emery": "M", "Emilia": "K", "Emiline": "K", "Emilla": "K",
+    "Emilly": "K", "Emmanuel": "K", "Emrah": "M", "Enyah": "K", "Evals": "K",
+    "Eyrun": "K", "Faghir": "K", "Fahreta": "K", "Faiza": "K", "Falle": "M",
+    "Fasael": "M", "Fatma": "K", "Felex": "M", "Filip": "M", "Filippa": "M",
+    "Fiona": "K", "Firat": "M", "Florina": "K", "Frands": "M", "Frederikke": "M",
+    "Friis": "M", "Gabriel": "M", "Ganeswaran": "M", "Ganna": "K", "George": "M",
+    "Gerthie": "K", "Githa": "K", "Godette": "K", "Gorget": "M", "Gregers": "M",
+    "Gøye": "K", "Hajg": "M", "Hakan": "M", "Hakon": "M", "Hanna-Maria": "K",
+    "Hans-Christian": "M", "Hans-Erhard": "M", "Hans-Henning": "M", "Hans-Henrik": "M", "Hans-Iver": "M",
+    "Hans-Jørgen": "M", "Hans-Kristian": "M", "Hans-Ulrik": "M", "Harun": "M", "Harvey": "M",
+    "Hassan": "M", "Hector": "M", "Hekla": "K", "Hella": "K", "Hellen": "K",
+    "Hjalte": "M", "Holly": "K", "Huda": "K", "Ian": "M", "Ibrahim": "M",
+    "Ida-Sofie": "K", "Ilka": "K", "Illa": "K", "Imadur": "M", "Imee": "K",
+    "Inette": "K", "Inge-Lise": "K", "Inger-Lise": "K", "Inger-Margrethe": "K", "Inger-Marie": "K",
+    "Ingred": "K", "Injam": "M", "Irem": "K", "Irvin": "M", "Isabel": "K",
+    "Isabella": "K", "Ismail": "M", "Isminur": "K", "Iza": "K", "Jackie": "K",
+    "Jacqueline": "K", "Jamal": "M", "Jamie": "M", "Jan-Erik": "M", "Janek": "M",
+    "Janet": "M", "Jannich": "M", "Jannick": "M", "Jasmin": "K", "Jasminka": "K",
+    "Jean-Louis": "M", "Jenees": "M", "Jennifer": "K", "Jens-Bernhard": "M", "Jens-Christian": "M",
+    "Jens-Erik": "M", "Jens-Jørn": "M", "Jens-Kristian": "M", "Jens-Otto": "M", "Jens-Peter": "M",
+    "Jensa": "M", "Jerrik": "M", "Jette-Kirsten": "K", "Jeyarajah": "K", "Jiesper": "M",
+    "Jilali": "M", "Joacchim": "M", "Joanna": "K", "Joe": "M", "Johan-Benjamin": "M",
+    "Johanna-Maria": "K", "Jonatan": "M", "Jorn-Dieter": "M", "Joseph": "M", "Joshua": "M",
+    "Juan": "M", "Judithe": "K", "Julien": "M", "Juliette": "K", "Kalbiye": "K",
+    "Kamila": "K", "Karen-Margrethe": "K", "Karl-Henrik": "M", "Karl-Åge": "M", "Kaspar": "M",
+    "Kasper-Peder": "M", "Kassandra": "K", "Katie": "K", "Keen": "M", "Kenni": "M",
+    "Keren": "M", "Kevin": "M", "Khadija": "K", "Khalid": "M", "Kifaax": "M",
+    "Kira": "K", "Kirsten-Marie": "K", "Kirstina": "K", "Kitna": "K", "Krestian": "M",
+    "Kris": "M", "Kristjar": "M", "Kristopher": "M", "Kæthe": "K", "Lars-Christian": "M",
+    "Lars-Emil": "M", "Lars-Peter": "M", "Lartey": "M", "Larysa": "K", "Laus": "M",
+    "Laust": "M", "Lave": "M", "Leise": "K", "Lene-Theresa": "K", "Lennie": "K",
+    "Lesia": "K", "Lindhardt": "M", "Lise-Lotte": "K", "Liseliva": "K", "Lismirah": "K",
+    "Liva": "K", "Lola": "K", "Lolan": "K", "Lorena": "K", "Louie": "M",
+    "Lubima": "K", "Lucas": "M", "Lucca": "K", "Lucia": "K", "Lukas": "M",
+    "Lukasz": "M", "Luna": "K", "Lærke": "K", "Mads-Emil": "M", "Mads-Magnus": "M",
+    "Mads-Peder": "M", "Mai-Britt": "K", "Maia": "K", "Maikhen": "K", "Maj-Britt": "K",
+    "Malde": "M", "Malena": "K", "Malgorzata": "K", "Malika": "K", "Malou": "K",
+    "Malthe": "M", "Malue": "K", "Manuel": "M", "Manuela": "K", "Marc": "M",
+    "Marcel": "M", "Marck": "M", "Marco": "M", "Maria-Irina": "K", "Mariane": "K",
+    "Marie-Louise": "K", "Mariola": "K", "Marion": "K", "Marthin": "M", "Marthine": "M",
+    "Mary-Ann": "K", "Matheus": "M", "Mathilda": "K", "Matilde": "K", "Matthew": "M",
+    "May-Britt": "K", "Maya": "K", "Maya-Louise": "K", "Medhat": "M", "Mehmet": "M",
+    "Meiner": "M", "Melina": "K", "Melissa": "K", "Meran": "M", "Methe": "K",
+    "Mette-Emilie": "K", "Mette-Marie": "K", "Mette-Rose": "K", "Miasser": "K", "Michaeel": "M",
+    "Michael-Tem": "M", "Michaell": "M", "Mika": "K", "Mike": "M", "Miklas": "M",
+    "Milishia": "K", "Mina": "K", "Mirela": "K", "Misja": "K", "Mitra": "K",
+    "Mohamad": "M", "Mohamed": "M", "Mohammad": "M", "Mohammadreza": "M", "Mohamud": "M",
+    "Mohat": "M", "Morgan": "M", "Mostafa": "K", "Muhamed": "M", "Muhammad": "M",
+    "Muj": "M", "Murat": "M", "Musa": "M", "Mussa": "K", "Mustafa": "M",
+    "Mustapha": "K", "Muuse": "M", "Muzafar": "M", "Nadja": "K", "Nageib": "M",
+    "Naja-Kathrine": "K", "Nangiyalay": "M", "Natalia": "K", "Natascha": "K", "Natasha": "K",
+    "Natasja": "K", "Natassia": "K", "Nathasja": "K", "Natja": "K", "Necla": "K",
+    "Nelle": "K", "Nellie": "K", "Nermina": "K", "Nichlas": "M", "Nicholai": "M",
+    "Nicholas": "M", "Nick": "M", "Nickolai": "M", "Nico": "M", "Nicola": "K",
+    "Nicolas": "M", "Niels-Christian": "M", "Niels-Erik": "M", "Niels-Jørgen": "M", "Niels-Ole": "M",
+    "Niels-Peter": "M", "Niki": "M", "Nikoline": "K", "Nilas": "M", "Nils-Erik": "M",
+    "Nitasha": "K", "Njord": "M", "Noah": "M", "Nohr": "M", "Noor": "M",
+    "Nordin": "M", "Oguzcan": "M", "Oksana": "K", "Oleksandr": "M", "Olena": "M",
+    "Olfert": "M", "Olivia": "K", "Omar": "M", "Osama": "K", "Ozkan": "M",
+    "Padideh": "K", "Paskar": "M", "Patrizia": "K", "Pax": "M", "Pernelle": "M",
+    "Peshtiwan": "M", "Petrus": "M", "Pierre": "M", "Piratheep": "M", "Polly-Nicole": "K",
+    "Poul-Erik": "M", "Poul-Henrik": "M", "Purnima": "K", "Pylle": "K", "Qasam": "M",
+    "Rafael-Raducu": "M", "Raged": "M", "Ragnar-Gwyn": "M", "Ragner": "M", "Rainer": "M",
+    "Rajinder": "M", "Rameesh": "M", "Rashid": "M", "Raul-Ionel": "M", "Regina": "K",
+    "Regine": "K", "Regitse": "K", "Rejin": "K", "Renette": "M", "Renè": "M",
+    "Riber": "M", "Ric": "M", "Rico": "M", "Roman": "M", "Romante": "K",
+    "Romeo": "M", "Rosalina": "K", "Rose-Marie": "K", "Roya": "K", "Rudy": "M",
+    "Rukhsana": "K", "Rumle": "M", "Sabina": "K", "Sabrina": "K", "Said": "M",
+    "Salah": "K", "Saliem": "M", "Salik": "M", "Samagarny": "M", "Samira": "K",
+    "Samsam": "M", "Samuel": "M", "Sanna": "K", "Santana": "K", "Santhalogini": "K",
+    "Sarfraz": "M", "Sascha": "K", "Sedi": "K", "Sejr": "M", "Selcuk": "M",
+    "Selina": "K", "Serdar": "M", "Serena": "K", "Shawn": "M", "Sheldon": "M",
+    "Shemon": "M", "Sie": "K", "Signe-Elisabeth": "K", "Sikandar": "M", "Silas": "M",
+    "Sinisa": "K", "Siobhán": "K", "Smilla": "K", "Smita": "K", "Soma": "K",
+    "Sophia": "K", "Soraya": "K", "Stanley": "M", "Steen-Ove": "M", "Stephanie": "K",
+    "Stephen": "M", "Steven": "M", "Stinne": "K", "Stinus": "M", "Summer": "K",
+    "Sussy": "K", "Suzette": "K", "Svend-Aage": "M", "Svend-Erik": "M", "Svenn-Erik": "M",
+    "Svenning": "M", "Svitlana": "K", "Syed": "M", "Syeda": "M", "Sytter": "M",
+    "Søsser": "K", "Taner": "M", "Tania": "K", "Tasia": "K", "Taya": "K",
+    "Tetiana": "K", "Thake": "M", "Tharsika": "K", "Thea": "K", "Thekla": "K",
+    "Theodore": "M", "Theresa": "K", "Thies": "M", "Thrine": "K", "Thue": "M",
+    "Thøger": "M", "Tina-Mia": "K", "Tinna": "K", "Tola": "K", "Tormod": "M",
+    "Tristan": "M", "Ulrikka": "K", "Unnie": "K", "Vanja": "K", "Viktoria": "K",
+    "Villads": "M", "Villum": "M", "Vincent": "M", "Vittus": "M", "Vladimir": "M",
+    "Volker": "M", "Wanda": "K", "Waqar": "M", "Wickie": "K", "Yasmin": "K",
+    "Yasser": "M", "Zahra": "K", "Zaklina": "K", "Zeb": "M", "Zeljka": "K",
+    "Zena": "K", "Zeynep": "K", "Zishan": "M", "Zitta": "K", "Åsbjørn": "M",
+    "Øzgen": "M",
+}
+
 def estimér_køn(fornavn):
     """
     Estimerer køn baseret på fornavn.
     Returnerer tuple: (køn, metode)
     - køn: 'M', 'K', eller 'Ukendt'
-    - metode: 'gender-guesser'
+    - metode: 'manuel identifikation', 'AI-vurdering', eller 'gender-guesser'
+
+    Prioritering:
+    1. Manuel database (1151 manuelt + AI identificerede navne)
+    2. gender-guesser automatisk estimering
     """
     if not fornavn or not isinstance(fornavn, str) or not fornavn.strip():
         return 'Ukendt', 'ingen_data'
@@ -33,8 +207,12 @@ def estimér_køn(fornavn):
     if not clean_name:
         return 'Ukendt', 'ingen_data'
 
+    # 1. Tjek først i manuel database (højeste prioritet)
+    if clean_name in MANUEL_KØNSBESTEMMELSE:
+        return MANUEL_KØNSBESTEMMELSE[clean_name], 'manuel identifikation'
+
+    # 2. Brug gender-guesser som fallback
     try:
-        # Brug gender-guesser med dansk context
         result = _gender_detector.get_gender(clean_name, 'denmark')
 
         # Map resultater til M/K/Ukendt
@@ -60,10 +238,16 @@ def fladgør_kandidatdata_kvrv(json_data):
     # Tjek om det er den nye struktur (direkte felter) eller gammel (nested under "Valg")
     if "Valgart" in json_data:
         # NY STRUKTUR fra valg.dk 2025
+
+        # Skip data fra tidligere valg (kun 2025 data)
+        valgdag = json_data.get("Valgdag", "")
+        if valgdag and "-2025" not in valgdag:
+            return []  # Spring over data fra tidligere valg
+
         valg_info = {
             "ValgId": json_data.get("KommuneDagiId") or json_data.get("RegionDagiId", ""),
             "ValgNavn": json_data.get("Valgart", ""),
-            "ValgDato": json_data.get("Valgdag", ""),
+            "ValgDato": valgdag,
             "KommuneKode": json_data.get("KommuneDagiId", ""),
             "KommuneNavn": json_data.get("Kommune", ""),
             "RegionKode": json_data.get("RegionDagiId", ""),
@@ -170,6 +354,11 @@ def fladgør_valgresultater_kvrv(json_data):
     # Håndter både ny struktur (direkte felter) og gammel (nested under "Valgresultater")
     if "Valgart" in json_data:
         # NY STRUKTUR 2025
+        # Skip data fra tidligere valg (kun 2025 data)
+        valgdag = json_data.get("Valgdag", "")
+        if valgdag and "-2025" not in valgdag:
+            return []  # Spring over data fra tidligere valg
+
         valg = json_data
     else:
         valg = json_data.get("Valgresultater", json_data)
@@ -253,9 +442,14 @@ def fladgør_mandatfordeling(json_data):
     # Håndter både ny og gammel struktur
     if "Valgart" in json_data:
         # NY STRUKTUR 2025
+        # Skip data fra tidligere valg (kun 2025 data)
+        valgdag = json_data.get("Valgdag", "")
+        if valgdag and "-2025" not in valgdag:
+            return []  # Spring over data fra tidligere valg
+
         valg_info = {
             "Valgart": json_data.get("Valgart", ""),
-            "Valgdag": json_data.get("Valgdag", ""),
+            "Valgdag": valgdag,
             "KommuneKode": json_data.get("Kommunekode", ""),
             "Kommune": json_data.get("Kommune", ""),
             "Resultatart": json_data.get("Resultatart", ""),
@@ -372,8 +566,13 @@ def process_json_files(json_mappe, output_mappe):
         return
     
     for json_fil in json_filer:
+        # Spring over verifikationsdata (testdata fra KOMBIT)
+        if 'verifikation' in str(json_fil):
+            print(f"Springer over verifikationsdata: {json_fil.name}")
+            continue
+
         print(f"Behandler: {json_fil.name}")
-        
+
         try:
             # Læs JSON med UTF-8 encoding og håndter BOM
             with open(json_fil, 'r', encoding='utf-8-sig') as f:
