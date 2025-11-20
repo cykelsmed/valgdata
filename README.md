@@ -36,8 +36,9 @@ cd excel_output/00_START_HER/
 ### Start her (små filer i `00_START_HER/`):
 1. **MASTER_FINDINGS.md** - Oversigt over alle key findings
 2. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune
-3. **Analyse_eksempel_stemmeslugere.xlsx** (13 KB) - Top 20 stemmeslugere
-4. **EXECUTIVE_SUMMARY.txt** - Hurtig tekstoversigt
+3. **Analyse_generel.xlsx** (38 KB) - Stemmeslugere, valgdeltagelse, job-titler, geografi
+4. **Analyse_eksempel_stemmeslugere.xlsx** (13 KB) - Top 20 stemmeslugere
+5. **EXECUTIVE_SUMMARY.txt** - Hurtig tekstoversigt
 
 ### Detaljerede data:
 - **01_Kommunalvalg/** - Alle kommunale data (~24 MB)
@@ -53,6 +54,7 @@ cd excel_output/00_START_HER/
 | `hent_valgdata.py` | Download fra valg.dk SFTP |
 | `valg_json_til_excel.py` | JSON → Excel med kønsestimering |
 | `lav_kønsanalyse.py` | Generer kønsanalyse per parti/kommune |
+| `lav_generel_analyse.py` | Generel analyse (valgdeltagelse, job, stemmeslugere) |
 | `generate_findings.py` | Auto-generer MASTER_FINDINGS.md |
 
 ## 📋 Pipeline Options
@@ -136,9 +138,11 @@ gender-guesser>=0.4.0
 Med dette datasæt kan du undersøge:
 
 ✅ **Kønsfordeling** - Per parti, kommune, region, blandt valgte
-✅ **Valgdeltagelse** - Per afstemningsområde, geografiske mønstre
-✅ **Personlige mandater** - Stemmeslugere, mandater via personlige stemmer
-✅ **Geografiske mønstre** - "Røde" vs "blå" områder, urban vs rural
+✅ **Valgdeltagelse** - Per afstemningsområde, geografiske mønstre (se Analyse_generel.xlsx)
+✅ **Personlige mandater** - Top 100 stemmeslugere med flest stemmer (se Analyse_generel.xlsx)
+✅ **Erhvervsfordeling** - Kandidaternes job-titler per parti (se Analyse_generel.xlsx)
+✅ **Partistatistik** - Kandidater, stemmer og gennemsnit per parti (se Analyse_generel.xlsx)
+✅ **Geografiske mønstre** - "Røde" vs "blå" områder, lokale vs udefra kommende kandidater
 ✅ **Historisk sammenligning** - Ændringer siden 2021 (kræver historiske data)
 
 ## 🤝 Bidrag

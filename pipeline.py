@@ -115,6 +115,13 @@ class Pipeline:
         cmd = ['python3', 'lav_kønsanalyse.py', '--output-dir', str(self.output_dir)]
         return self.run_command(cmd, "Kønsanalyse")
 
+    def analyze_general(self):
+        """Lav generel analyse (valgdeltagelse, job, stemmeslugere)"""
+        self.log("📊 Laver generel analyse (valgdeltagelse, job, stemmeslugere)...")
+
+        cmd = ['python3', 'lav_generel_analyse.py', '--output-dir', str(self.output_dir)]
+        return self.run_command(cmd, "Generel Analyse")
+
     def generate_findings(self):
         """Generer findings og MASTER_FINDINGS.md"""
         self.log("📊 Genererer findings...")
@@ -141,7 +148,8 @@ class Pipeline:
             self.log(f"  ✓ {folder_name}/ - {description}")
 
         # Flyt analyse-filer til START_HER
-        for file in ['Analyse_kønsfordeling.xlsx', 'Analyse_eksempel_stemmeslugere.xlsx',
+        for file in ['Analyse_kønsfordeling.xlsx', 'Analyse_generel.xlsx',
+                     'Analyse_eksempel_stemmeslugere.xlsx',
                      'MASTER_FINDINGS.md', 'KEY_FINDINGS.txt', 'EXECUTIVE_SUMMARY.txt',
                      'KEY_FINDINGS_BULLETS.txt', '_LÆS_MIG.txt']:
             src = self.output_dir / file
@@ -255,6 +263,8 @@ Eksempler:
     # Analyze
     if (args.all or args.analyze) and success:
         if not pipeline.analyze_gender():
+            success = False
+        if not pipeline.analyze_general():
             success = False
 
     # Findings
