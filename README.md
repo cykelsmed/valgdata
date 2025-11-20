@@ -71,6 +71,7 @@ cd excel_output/00_START_HER/
 | `parse_borgmestre.py` | Parse borgmestre.md til struktureret CSV |
 | `lav_borgmester_analyse.py` | Borgmester-analyse (partifordeling, magtskifter, køn) |
 | `generate_findings.py` | Auto-generer MASTER_FINDINGS.md |
+| `validate_data.py` | Valider data for fejl og realistiske værdier |
 
 ## 📋 Pipeline Options
 

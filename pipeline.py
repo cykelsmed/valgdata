@@ -143,6 +143,13 @@ class Pipeline:
         cmd = ['python3', 'generate_findings.py', '--output-dir', str(self.output_dir)]
         return self.run_command(cmd, "Findings generation")
 
+    def validate_data(self):
+        """Valider data for fejl og realistiske værdier"""
+        self.log("✅ Validerer data...")
+
+        cmd = ['python3', 'validate_data.py', '--output-dir', str(self.output_dir)]
+        return self.run_command(cmd, "Data validering")
+
     def organize_files(self):
         """Organiser filer i mapper"""
         self.log("📁 Organiserer filer...")
@@ -155,7 +162,8 @@ class Pipeline:
             '03_Samlet_Alle_Valg': 'Samlet data',
             '04_Reference_Geografi': 'Geografiske data',
             '05_Valgdeltagelse_Kommunal': 'Valgdeltagelse per opstillingskreds - Kommunalvalg',
-            '06_Valgdeltagelse_Regional': 'Valgdeltagelse per opstillingskreds - Regionsrådsvalg'
+            '06_Valgdeltagelse_Regional': 'Valgdeltagelse per opstillingskreds - Regionsrådsvalg',
+            'parquet': 'Interne Parquet-filer (hurtig læsning)'
         }
 
         for folder_name, description in folders.items():
@@ -340,6 +348,12 @@ Eksempler:
     if (args.all or args.findings) and success:
         if not pipeline.generate_findings():
             success = False
+
+    # Validate (altid efter findings)
+    if (args.all or args.findings) and success:
+        if not pipeline.validate_data():
+            success = False
+            pipeline.log("⚠️  ADVARSEL: Data validation fejlede - tjek output!", 'WARNING')
 
     # Organize
     if (args.all or args.organize) and success:
