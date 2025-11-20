@@ -5,34 +5,46 @@ Genererer automatiske key findings og MASTER_FINDINGS.md fra valgdata
 
 import pandas as pd
 from pathlib import Path
-import glob
 from datetime import datetime
 import sys
-
-def find_latest_file(pattern):
-    """Find den nyeste fil der matcher pattern"""
-    files = glob.glob(pattern)
-    if not files:
-        return None
-    files.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
-    return files[0]
+from utils import find_latest_file, load_parquet
 
 def analyze_data(output_dir='excel_output'):
     """Analyser data og udtræk key findings"""
 
     print("🔍 Analyserer valgdata...")
 
-    # Find filer
-    kandidater_fil = find_latest_file(f'{output_dir}/kandidater_ALLE_VALG_*.xlsx')
-    resultater_fil = find_latest_file(f'{output_dir}/valgresultater_ALLE_VALG_*.xlsx')
+    # Find filer - Parquet først, derefter Excel (også i undermapper)
+    parquet_dir = Path(output_dir) / 'parquet'
+
+    kandidater_fil = find_latest_file(f'{parquet_dir}/kandidater_ALLE_VALG_*.parquet')
+    if not kandidater_fil:
+        kandidater_fil = find_latest_file(f'{output_dir}/kandidater_ALLE_VALG_*.xlsx')
+    if not kandidater_fil:
+        # Søg i 03_Samlet_Alle_Valg undermappe
+        kandidater_fil = find_latest_file(f'{output_dir}/03_Samlet_Alle_Valg/kandidater_ALLE_VALG_*.xlsx')
+
+    resultater_fil = find_latest_file(f'{parquet_dir}/valgresultater_ALLE_VALG_*.parquet')
+    if not resultater_fil:
+        resultater_fil = find_latest_file(f'{output_dir}/valgresultater_ALLE_VALG_*.xlsx')
+    if not resultater_fil:
+        # Søg i 03_Samlet_Alle_Valg undermappe
+        resultater_fil = find_latest_file(f'{output_dir}/03_Samlet_Alle_Valg/valgresultater_ALLE_VALG_*.xlsx')
+    
+    # Kønsanalyse fil (kan være i både root og 00_START_HER)
     køns_fil = f'{output_dir}/Analyse_kønsfordeling.xlsx'
+    if not Path(køns_fil).exists():
+        køns_fil = f'{output_dir}/00_START_HER/Analyse_kønsfordeling.xlsx'
 
     if not kandidater_fil:
         print("❌ Kunne ikke finde kandidat-filer")
         return None
 
     print(f"Læser: {Path(kandidater_fil).name}")
-    kandidater = pd.read_excel(kandidater_fil)
+    if kandidater_fil.endswith('.parquet'):
+        kandidater = load_parquet(kandidater_fil)
+    else:
+        kandidater = pd.read_excel(kandidater_fil)
 
     findings = {
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -236,10 +248,88 @@ def analyze_data(output_dir='excel_output'):
         # Job-titler
         try:
             job_titler = pd.read_excel(generel_fil, sheet_name='Top Job-titler')
-            top_jobs = job_titler.head(5)
+            top_jobs = job_titler.head(15)  # Udvid til top 15
             findings['top_job_titler'] = top_jobs.to_dict('records')
         except Exception as e:
             print(f"Kunne ikke læse job-titler: {e}")
+
+        # Partistatistik (NYT!)
+        try:
+            partistatistik = pd.read_excel(generel_fil, sheet_name='Partistatistik')
+            # Top 10 partier efter totale stemmer
+            partistatistik_top = partistatistik.nlargest(10, 'Totale Stemmer')
+            findings['partistatistik'] = partistatistik_top.to_dict('records')
+
+            # Beregn totaler
+            findings['total_stemmer'] = int(partistatistik['Totale Stemmer'].sum())
+            findings['total_listestemmer'] = int(partistatistik['Listestemmer Total'].sum())
+            findings['total_personlige_stemmer'] = int(partistatistik['Personlige Stemmer Total'].sum())
+        except Exception as e:
+            print(f"Kunne ikke læse partistatistik: {e}")
+
+        # Geografi - Total (NYT!)
+        try:
+            geografi_total = pd.read_excel(generel_fil, sheet_name='Geografi - Total')
+            findings['geografi_total'] = geografi_total.to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse geografi total: {e}")
+
+        # Geografi - Per Parti (NYT!)
+        try:
+            geografi_parti = pd.read_excel(generel_fil, sheet_name='Geografi - Per Parti')
+            # Top 10 partier med mest lokale kandidater
+            geografi_top = geografi_parti.nlargest(10, True)  # True = lokale kandidater
+            findings['geografi_per_parti'] = geografi_top.to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse geografi per parti: {e}")
+
+        # Kandidater per Kommune (NYT!)
+        try:
+            kand_kommune = pd.read_excel(generel_fil, sheet_name='Kandidater per Kommune')
+            # Top 10 mest aktive + bund 10
+            top_kommuner = kand_kommune.nlargest(10, 'Antal Kandidater')
+            bund_kommuner = kand_kommune.nsmallest(10, 'Antal Kandidater')
+            findings['kandidater_top_kommuner'] = top_kommuner.to_dict('records')
+            findings['kandidater_bund_kommuner'] = bund_kommuner.to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse kandidater per kommune: {e}")
+
+        # Job per Parti (NYT!)
+        try:
+            job_parti = pd.read_excel(generel_fil, sheet_name='Job per Parti')
+            findings['job_per_parti'] = job_parti.head(10).to_dict('records')  # Top 10 partier
+        except Exception as e:
+            print(f"Kunne ikke læse job per parti: {e}")
+
+        # Udvid valgdeltagelse med statistik
+        try:
+            valgdeltagelse = pd.read_excel(generel_fil, sheet_name='Valgdeltagelse')
+
+            # Split by Valgtype
+            kommunal = valgdeltagelse[valgdeltagelse['Valgtype'] == 'Kommunalvalg']
+            regional = valgdeltagelse[valgdeltagelse['Valgtype'] == 'Regionsrådsvalg']
+
+            # Top 5 + Bund 5 + Statistik for kommunal
+            findings['valgdelt_kommunal_top5'] = kommunal.nlargest(5, 'Valgdeltagelse %').to_dict('records')
+            findings['valgdelt_kommunal_bund5'] = kommunal.nsmallest(5, 'Valgdeltagelse %').to_dict('records')
+            findings['valgdelt_kommunal_avg'] = round(kommunal['Valgdeltagelse %'].mean(), 1)
+
+            # Top 5 + Bund 5 + Statistik for regional
+            findings['valgdelt_regional_top5'] = regional.nlargest(5, 'Valgdeltagelse %').to_dict('records')
+            findings['valgdelt_regional_bund5'] = regional.nsmallest(5, 'Valgdeltagelse %').to_dict('records')
+            findings['valgdelt_regional_avg'] = round(regional['Valgdeltagelse %'].mean(), 1)
+
+            # Overall average
+            findings['valgdelt_avg_all'] = round(valgdeltagelse['Valgdeltagelse %'].mean(), 1)
+        except Exception as e:
+            print(f"Kunne ikke læse udvidet valgdeltagelse: {e}")
+
+        # Udvid stemmeslugere til top 20
+        try:
+            stemmeslugere = pd.read_excel(generel_fil, sheet_name='Top 100 Stemmeslugere')
+            findings['top_20_stemmeslugere'] = stemmeslugere.head(20).to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse top 20 stemmeslugere: {e}")
 
     return findings
 
@@ -316,19 +406,35 @@ def generate_master_findings(findings, output_dir='excel_output'):
 💡 *{top_kandidat.get('Navn', 'N/A')} trækker {forskel:,} flere stemmer end nummer 2 - en massiv personlig opbakning.*
 """
 
-    # STORY 3: VALGDELTAGELSE
-    if 'top_valgdeltagelse' in findings and findings['top_valgdeltagelse']:
+    # STORY 3: VALGDELTAGELSE (UDVIDET)
+    if 'valgdelt_kommunal_top5' in findings or 'top_valgdeltagelse' in findings:
         content += f"""
 
 ### 🗳️ Valgdeltagelsen - Geografiske Forskelle
 **Småøer Slår Storbyerne**
 
 """
-        for i, row in enumerate(findings['top_valgdeltagelse'][:5], 1):
-            content += f"{i}. **{row.get('Kommune', 'N/A')}**: {row.get('Valgdeltagelse %', 0):.1f}% ({row.get('Valgtype', 'N/A')})\n"
+        # Gennemsnit først
+        if 'valgdelt_kommunal_avg' in findings:
+            content += f"**Gennemsnit Kommunalvalg:** {findings['valgdelt_kommunal_avg']:.1f}%\n"
+        if 'valgdelt_regional_avg' in findings:
+            content += f"**Gennemsnit Regionsrådsvalg:** {findings['valgdelt_regional_avg']:.1f}%\n\n"
+
+        # Top 5 Kommunalvalg
+        if 'valgdelt_kommunal_top5' in findings:
+            content += "**Højeste Deltagelse (Kommunalvalg):**\n"
+            for i, row in enumerate(findings['valgdelt_kommunal_top5'], 1):
+                content += f"{i}. **{row.get('Kommune', 'N/A')}**: {row.get('Valgdeltagelse %', 0):.1f}%\n"
+
+        # Bund 5 Kommunalvalg
+        if 'valgdelt_kommunal_bund5' in findings:
+            content += "\n**Laveste Deltagelse (Kommunalvalg):**\n"
+            for i, row in enumerate(findings['valgdelt_kommunal_bund5'], 1):
+                content += f"{i}. **{row.get('Kommune', 'N/A')}**: {row.get('Valgdeltagelse %', 0):.1f}%\n"
 
         content += f"""
 💡 *De små ø-kommuner har markant højere valgdeltagelse end landsgennemsnittet - lokalt engagement slår anonymitet.*
+💡 *Spredning på op til {findings.get('valgdelt_kommunal_top5', [{}])[0].get('Valgdeltagelse %', 0) - findings.get('valgdelt_kommunal_bund5', [{}])[0].get('Valgdeltagelse %', 0):.1f} procentpoint mellem højeste og laveste kommune.*
 """
 
     # STORY 4: ERHVERV
@@ -426,6 +532,52 @@ def generate_master_findings(findings, output_dir='excel_output'):
 """
         for i, (kommune, data) in enumerate(list(findings['værste_kommuner_kønsbalance'].items())[:5], 1):
             content += f"{i}. **{kommune}**: {data['Andel_Kvinder']:.1f}% kvinder ({int(data['Total'])} kandidater)\n"
+
+    # NYE SEKTIONER - PARTISTATISTIK
+    if 'partistatistik' in findings and findings['partistatistik']:
+        content += """
+
+---
+
+## 📊 PARTISTATISTIK - Hvem Fik Flest Stemmer?
+
+"""
+        if 'total_stemmer' in findings:
+            content += f"**Total Stemmer (alle partier):** {findings['total_stemmer']:,}\n"
+            content += f"**Heraf Listestemmer:** {findings['total_listestemmer']:,}\n"
+            content += f"**Heraf Personlige Stemmer:** {findings['total_personlige_stemmer']:,}\n\n"
+
+        content += "### Top 10 Partier Efter Totale Stemmer\n\n"
+        for i, parti in enumerate(findings['partistatistik'][:10], 1):
+            content += f"{i}. **{parti.get('Parti', 'N/A')}**: {parti.get('Totale Stemmer', 0):,} stemmer ({parti.get('Antal Kandidater', 0)} kandidater, {parti.get('Stemmer per Kandidat', 0):,.0f} stemmer/kandidat)\n"
+
+        content += "\n💡 *Stemmer per kandidat viser hvor effektivt partiet udnytter sine kandidater - højere tal betyder færre kandidater trækker flere stemmer.*\n"
+
+    # GEOGRAFISK ANALYSE
+    if 'geografi_total' in findings and findings['geografi_total']:
+        content += """
+
+---
+
+## 📍 GEOGRAFISK ANALYSE - Lokale vs Eksterne Kandidater
+
+"""
+        for row in findings['geografi_total']:
+            bor_i_kommunen = row.get('Bor i Kommunen (Estimat)', 'N/A')
+            antal = row.get('Antal', 0)
+            andel = row.get('Andel %', 0)
+            if bor_i_kommunen == True:
+                content += f"**Lokale kandidater:** {antal:,} ({andel:.1f}%) - bor i den kommune de stiller op i\n"
+            elif bor_i_kommunen == False:
+                content += f"**Eksterne kandidater:** {antal:,} ({andel:.1f}%) - bor IKKE i kommunen\n"
+
+        content += "\n💡 *Kun omkring 1 ud af 5 kandidater bor faktisk i den kommune de stiller op i. Resten er \"faldskærmskandidater\" eller stiller op i nabokommuner.*\n"
+
+        # Per parti
+        if 'geografi_per_parti' in findings and findings['geografi_per_parti']:
+            content += "\n### Hvilke Partier Har Mest Lokale Kandidater?\n\n"
+            for i, parti in enumerate(findings['geografi_per_parti'][:10], 1):
+                content += f"{i}. **{parti.get('ListeNavn', 'N/A')}**: {parti.get('% Lokale', 0):.1f}% lokale kandidater\n"
 
     # DATA FILES
     content += """

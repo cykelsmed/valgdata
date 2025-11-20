@@ -7,17 +7,9 @@ Analyserer valgdeltagelse, stemmeslugere, erhverv og partistyrke.
 import pandas as pd
 from pathlib import Path
 import sys
-import glob
 import re
 import argparse
-
-def find_latest_file(pattern):
-    """Find seneste fil baseret på modification time"""
-    files = glob.glob(pattern)
-    if not files:
-        return None
-    files.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
-    return files[0]
+from utils import find_latest_file, load_parquet
 
 def rens_stilling(titel):
     """Simpel rensning af jobtitler for bedre gruppering"""
@@ -58,26 +50,42 @@ def lav_generel_analyse(output_dir='excel_output'):
     """Lav generel analyse af valgdata"""
     print("🔍 Starter generel valganalyse...")
 
-    # Find filer i 03_Samlet_Alle_Valg folder
+    # Find filer - Parquet først, derefter Excel fallback
+    parquet_dir = Path(output_dir) / 'parquet'
     samlet_dir = Path(output_dir) / '03_Samlet_Alle_Valg'
 
-    kand_fil = find_latest_file(str(samlet_dir / 'kandidater_ALLE_VALG_*.xlsx'))
-    res_fil = find_latest_file(str(samlet_dir / 'valgresultater_ALLE_VALG_*.xlsx'))
+    kand_fil = find_latest_file(str(parquet_dir / 'kandidater_ALLE_VALG_*.parquet'))
+    if not kand_fil:
+        kand_fil = find_latest_file(str(samlet_dir / 'kandidater_ALLE_VALG_*.xlsx'))
+    if not kand_fil:
+        kand_fil = find_latest_file(str(Path(output_dir) / 'kandidater_ALLE_VALG_*.xlsx'))
+
+    res_fil = find_latest_file(str(parquet_dir / 'valgresultater_ALLE_VALG_*.parquet'))
+    if not res_fil:
+        res_fil = find_latest_file(str(samlet_dir / 'valgresultater_ALLE_VALG_*.xlsx'))
+    if not res_fil:
+        res_fil = find_latest_file(str(Path(output_dir) / 'valgresultater_ALLE_VALG_*.xlsx'))
 
     if not kand_fil:
-        print(f"❌ Mangler kandidat-fil i {samlet_dir}")
+        print(f"❌ Mangler kandidat-fil")
         return False
 
     if not res_fil:
-        print(f"❌ Mangler valgresultater-fil i {samlet_dir}")
+        print(f"❌ Mangler valgresultater-fil")
         return False
 
-    # Læs data
+    # Læs data - auto-detect format
     print(f"📖 Læser kandidater fra: {Path(kand_fil).name}")
-    df_kand = pd.read_excel(kand_fil)
+    if kand_fil.endswith('.parquet'):
+        df_kand = load_parquet(kand_fil)
+    else:
+        df_kand = pd.read_excel(kand_fil)
 
     print(f"📖 Læser resultater fra: {Path(res_fil).name}")
-    df_res = pd.read_excel(res_fil)
+    if res_fil.endswith('.parquet'):
+        df_res = load_parquet(res_fil)
+    else:
+        df_res = pd.read_excel(res_fil)
 
     # Opret output fil i 00_START_HER
     output_file = Path(output_dir) / '00_START_HER' / 'Analyse_generel.xlsx'
@@ -159,12 +167,20 @@ def lav_generel_analyse(output_dir='excel_output'):
 
     # Totale personlige stemmer og listestemmer pr parti
     if 'ListeStemmer' in df_res.columns and 'PersonligeStemmer' in df_res.columns:
-        # Aggreger stemmer pr parti
-        parti_stemmer = df_res.groupby('ListeNavn').agg({
-            'ListeStemmer': 'sum',
-            'PersonligeStemmer': lambda x: x.sum() if x.notna().any() else 0
-        }).reset_index()
-        parti_stemmer.columns = ['Parti', 'Listestemmer Total', 'Personlige Stemmer Total']
+        # VIGTIG FIX: Listestemmer er per afstemningsområde, ikke per kandidat!
+        # Vi skal deduplikere listestemmer per parti+afstemningsområde
+
+        # 1. Listestemmer - kun én gang per parti per afstemningsområde
+        liste_stemmer = df_res[['ListeNavn', 'AfstemningsområdeDagiId', 'ListeStemmer']].drop_duplicates()
+        parti_liste = liste_stemmer.groupby('ListeNavn')['ListeStemmer'].sum().reset_index()
+        parti_liste.columns = ['Parti', 'Listestemmer Total']
+
+        # 2. Personlige stemmer - summeres direkte (unikke per kandidat)
+        parti_personlige = df_res.groupby('ListeNavn')['PersonligeStemmer'].sum().reset_index()
+        parti_personlige.columns = ['Parti', 'Personlige Stemmer Total']
+
+        # 3. Merge
+        parti_stemmer = pd.merge(parti_liste, parti_personlige, on='Parti', how='outer')
         parti_stemmer['Totale Stemmer'] = parti_stemmer['Listestemmer Total'] + parti_stemmer['Personlige Stemmer Total']
 
         # Merge med kandidatantal
