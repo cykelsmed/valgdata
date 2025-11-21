@@ -52,6 +52,9 @@ def find_mandate_theft(df_res, df_mand):
         (df_mand['KandidatId'].notna())
     ].copy()
 
+    # VIGTIGT: Deduplicate på KandidatId (valg.dk data kan have multiple FrigivelsesTidspunkt)
+    elected = elected.drop_duplicates(subset='KandidatId', keep='last')
+
     robbed_candidates = []
 
     # Process each kommune+parti combination
@@ -279,6 +282,10 @@ def find_thin_majorities(df_mand, output_dir):
         (df_mand['Valgart'] == 'Kommunalvalg') &
         (df_mand['MandatType'] != 'Stedfortræder')
     ].copy()
+
+    # VIGTIGT: Deduplicate på KandidatId (valg.dk data kan have multiple FrigivelsesTidspunkt)
+    # Vi beholder den seneste version (sidst i DataFrame)
+    mandater = mandater.drop_duplicates(subset='KandidatId', keep='last')
 
     # Normalize party names to match borgmester data
     mandater['PartiNormaliseret'] = mandater['ListeNavn'].apply(normalize_party_name)
