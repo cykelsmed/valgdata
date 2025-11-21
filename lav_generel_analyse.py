@@ -167,21 +167,23 @@ def lav_generel_analyse(output_dir='excel_output'):
 
     # Totale personlige stemmer og listestemmer pr parti
     if 'ListeStemmer' in df_res.columns and 'PersonligeStemmer' in df_res.columns:
-        # VIGTIG FIX: Listestemmer er per afstemningsområde, ikke per kandidat!
-        # Vi skal deduplikere listestemmer per parti+afstemningsområde
+        # VIGTIG FIX: ListeStemmer (capital S) er ALLEREDE totale stemmer for partiet!
+        # ListeStemmer = Listestemmer (blanke) + PersonligeStemmer (kandidater)
+        # Vi må IKKE lægge ListeStemmer + PersonligeStemmer sammen - det er double counting!
 
-        # 1. Listestemmer - kun én gang per parti per afstemningsområde
+        # 1. ListeStemmer - kun én gang per parti per afstemningsområde (dette er totalerne!)
         liste_stemmer = df_res[['ListeNavn', 'AfstemningsområdeDagiId', 'ListeStemmer']].drop_duplicates()
         parti_liste = liste_stemmer.groupby('ListeNavn')['ListeStemmer'].sum().reset_index()
-        parti_liste.columns = ['Parti', 'Listestemmer Total']
+        parti_liste.columns = ['Parti', 'Totale Stemmer']
 
-        # 2. Personlige stemmer - summeres direkte (unikke per kandidat)
-        parti_personlige = df_res.groupby('ListeNavn')['PersonligeStemmer'].sum().reset_index()
-        parti_personlige.columns = ['Parti', 'Personlige Stemmer Total']
+        # 2. Personlige stemmer - for reference (delmængde af ListeStemmer)
+        # Deduplicate først (PersonligeStemmer er samme værdi for alle rækker med samme kandidat)
+        personlige_stemmer = df_res[['ListeNavn', 'KandidatId', 'PersonligeStemmer']].drop_duplicates()
+        parti_personlige = personlige_stemmer.groupby('ListeNavn')['PersonligeStemmer'].sum().reset_index()
+        parti_personlige.columns = ['Parti', 'Personlige Stemmer']
 
-        # 3. Merge
+        # 3. Merge (PersonligeStemmer er kun til reference, bruges ikke i totalen)
         parti_stemmer = pd.merge(parti_liste, parti_personlige, on='Parti', how='outer')
-        parti_stemmer['Totale Stemmer'] = parti_stemmer['Listestemmer Total'] + parti_stemmer['Personlige Stemmer Total']
 
         # Merge med kandidatantal
         parti_stats = pd.merge(parti_kand, parti_stemmer, on='Parti', how='left')

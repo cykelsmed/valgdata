@@ -261,9 +261,10 @@ def analyze_data(output_dir='excel_output'):
             findings['partistatistik'] = partistatistik_top.to_dict('records')
 
             # Beregn totaler
+            # VIGTIG: 'Totale Stemmer' er ALLEREDE det korrekte total (ListeStemmer)
+            # PersonligeStemmer er en delmængde, ikke et separat tal!
             findings['total_stemmer'] = int(partistatistik['Totale Stemmer'].sum())
-            findings['total_listestemmer'] = int(partistatistik['Listestemmer Total'].sum())
-            findings['total_personlige_stemmer'] = int(partistatistik['Personlige Stemmer Total'].sum())
+            findings['total_personlige_stemmer'] = int(partistatistik['Personlige Stemmer'].sum())
         except Exception as e:
             print(f"Kunne ikke læse partistatistik: {e}")
 
@@ -655,8 +656,8 @@ Analysen fandt ingen kandidater der fik flere personlige stemmer end den sidste 
 """
         if 'total_stemmer' in findings:
             content += f"**Total Stemmer (alle partier):** {findings['total_stemmer']:,}\n"
-            content += f"**Heraf Listestemmer:** {findings['total_listestemmer']:,}\n"
-            content += f"**Heraf Personlige Stemmer:** {findings['total_personlige_stemmer']:,}\n\n"
+            content += f"**Heraf Personlige Stemmer:** {findings['total_personlige_stemmer']:,}\n"
+            content += f"**Heraf Blanke Listestemmer:** {findings['total_stemmer'] - findings['total_personlige_stemmer']:,}\n\n"
 
         content += "### Top 10 Partier Efter Totale Stemmer\n\n"
         for i, parti in enumerate(findings['partistatistik'][:10], 1):
