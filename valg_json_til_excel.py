@@ -13,6 +13,44 @@ from datetime import datetime
 import sys
 from utils import estimér_køn, save_parquet
 
+
+def dedupliker_nyeste_data(data_list, gruppering_kolonner):
+    """
+    Filtrer data til kun at indeholde den nyeste opdatering for hver gruppe.
+
+    Args:
+        data_list: Liste af dictionaries med valgdata
+        gruppering_kolonner: Liste af kolonnenavne at gruppere på (typisk afstemningsområde + kandidat)
+
+    Returns:
+        Liste med kun nyeste data for hver gruppe
+    """
+    if not data_list:
+        return data_list
+
+    # Konverter til DataFrame for lettere manipulation
+    df = pd.DataFrame(data_list)
+
+    # Tjek om FrigivelsesTidspunkt findes
+    if 'FrigivelsesTidspunkt' not in df.columns:
+        return data_list  # Ingen deduplicering mulig
+
+    # Tjek at alle gruppering_kolonner findes
+    manglende = [col for col in gruppering_kolonner if col not in df.columns]
+    if manglende:
+        print(f"  ⚠️  Advarsel: Manglende kolonner for deduplicering: {manglende}")
+        return data_list
+
+    # Konverter FrigivelsesTidspunkt til datetime hvis det er en string
+    df['FrigivelsesTidspunkt'] = pd.to_datetime(df['FrigivelsesTidspunkt'], errors='coerce')
+
+    # Sorter efter FrigivelsesTidspunkt (nyeste først) og behold kun første række per gruppe
+    df_sorted = df.sort_values('FrigivelsesTidspunkt', ascending=False)
+    df_deduplicated = df_sorted.drop_duplicates(subset=gruppering_kolonner, keep='first')
+
+    # Konverter tilbage til liste af dictionaries
+    return df_deduplicated.to_dict('records')
+
 def fladgør_kandidatdata_kvrv(json_data):
     """
     Fladgør kandidatdata for kommunal/regionsrådsvalg.
@@ -31,12 +69,12 @@ def fladgør_kandidatdata_kvrv(json_data):
             return []  # Spring over data fra tidligere valg
 
         valg_info = {
-            "ValgId": json_data.get("KommuneDagiId") or json_data.get("RegionDagiId", ""),
+            "ValgId": json_data.get("KommuneDagiId") or json_data.get("RegionDagiId") or None,
             "ValgNavn": json_data.get("Valgart", ""),
             "ValgDato": valgdag,
-            "KommuneKode": json_data.get("KommuneDagiId", ""),
+            "KommuneKode": json_data.get("KommuneDagiId") or None,
             "KommuneNavn": json_data.get("Kommune", ""),
-            "RegionKode": json_data.get("RegionDagiId", ""),
+            "RegionKode": json_data.get("RegionDagiId") or None,
             "RegionNavn": json_data.get("Region", ""),
             "FrigivelsesTidspunkt": json_data.get("FrigivelsesTidspunktUTC", ""),
             "OpdateringsTidspunkt": json_data.get("OpdateringsTidspunktUTC", ""),
@@ -91,9 +129,9 @@ def fladgør_kandidatdata_kvrv(json_data):
             "ValgId": valg.get("Id", ""),
             "ValgNavn": valg.get("Navn", ""),
             "ValgDato": valg.get("Dato", ""),
-            "KommuneKode": valg.get("KommuneReference", {}).get("Kode", ""),
+            "KommuneKode": valg.get("KommuneReference", {}).get("Kode") or None,
             "KommuneNavn": valg.get("KommuneReference", {}).get("Navn", ""),
-            "RegionKode": valg.get("RegionReference", {}).get("Kode", ""),
+            "RegionKode": valg.get("RegionReference", {}).get("Kode") or None,
             "RegionNavn": valg.get("RegionReference", {}).get("Navn", ""),
         }
 
@@ -168,7 +206,7 @@ def fladgør_valgresultater_kvrv(json_data):
         "AfstemningsområdeNummer": valg.get("AfstemningsområdeNummer", valg.get("AfstemningsområdeReference", {}).get("Nummer", "")),
         "Afstemningsområde": valg.get("Afstemningsområde", valg.get("AfstemningsområdeReference", {}).get("Navn", "")),
         "Kommune": valg.get("Kommune", valg.get("KommuneReference", {}).get("Navn", "")),
-        "Kommunekode": valg.get("Kommunekode", valg.get("KommuneReference", {}).get("Kode", "")),
+        "Kommunekode": valg.get("Kommunekode", valg.get("KommuneReference", {}).get("Kode")) or None,
         "Stemmeberettigede": stemmeberettigede,
         "AfgivneStemmer": afgivne_stemmer,
         "GyldigeStemmer": gyldige_stemmer,
@@ -236,7 +274,7 @@ def fladgør_mandatfordeling(json_data):
         valg_info = {
             "Valgart": json_data.get("Valgart", ""),
             "Valgdag": valgdag,
-            "KommuneKode": json_data.get("Kommunekode", ""),
+            "KommuneKode": json_data.get("Kommunekode") or None,
             "Kommune": json_data.get("Kommune", ""),
             "Resultatart": json_data.get("Resultatart", ""),
             "FrigivelsesTidspunkt": json_data.get("FrigivelsesTidspunktUTC", ""),
@@ -245,7 +283,7 @@ def fladgør_mandatfordeling(json_data):
         valg = json_data.get("Valg", json_data)
         valg_info = {
             "ValgId": valg.get("Id", ""),
-            "KommuneKode": valg.get("KommuneReference", {}).get("Kode", ""),
+            "KommuneKode": valg.get("KommuneReference", {}).get("Kode") or None,
             "Kommune": valg.get("KommuneReference", {}).get("Navn", ""),
         }
 
@@ -447,8 +485,18 @@ def process_json_files(json_mappe, output_mappe):
         print(f"  {len(alle_kandidater)} rækker, {len(df.columns)} kolonner")
 
     if alle_resultater:
+        # Dedupliker: Behold kun nyeste data per afstemningsområde+kandidat
+        print("\n🔄 Deduplikerer valgresultater (beholder kun nyeste opdateringer)...")
+        før_antal = len(alle_resultater)
+        alle_resultater = dedupliker_nyeste_data(
+            alle_resultater,
+            ['AfstemningsområdeDagiId', 'KandidatId']
+        )
+        efter_antal = len(alle_resultater)
+        print(f"   Før: {før_antal} rækker → Efter: {efter_antal} rækker ({før_antal - efter_antal} duplikater fjernet)")
+
         df = pd.DataFrame(alle_resultater)
-        
+
         # Gem Parquet
         parquet_fil = parquet_dir / f"valgresultater_ALLE_VALG_{timestamp}.parquet"
         save_parquet(df, parquet_fil, "Alle valgresultater (Parquet)")
@@ -459,16 +507,40 @@ def process_json_files(json_mappe, output_mappe):
         print(f"✓ Alle valgresultater (Excel): {output_fil.name}")
         print(f"  {len(alle_resultater)} rækker, {len(df.columns)} kolonner")
 
-        # Lav også en pivottabel med resultater pr. kommune/region
-        if 'Kommune' in df.columns and 'ListeNavn' in df.columns:
-            pivot = df.groupby(['Kommune', 'ListeNavn'])['PersonligeStemmer'].sum().reset_index()
-            pivot_fil = output_mappe / f"resultater_per_kommune_region_{timestamp}.xlsx"
-            pivot.to_excel(pivot_fil, index=False, engine='openpyxl')
-            print(f"✓ Pivottabel gemt: {pivot_fil.name}")
+        # Lav pivottabeller med korrekte resultater pr. kommune/region
+        # VIGTIGT: Skal bruge ListeStemmer (total per område) og adskille kommunal/regional
+        if 'Kommune' in df.columns and 'ListeNavn' in df.columns and 'ListeStemmer' in df.columns:
+            # Først: Dedupliker til én række per afstemningsområde + parti
+            # (fordi ListeStemmer er den samme for alle kandidater i et område)
+            df_areas = df.groupby(['Valgart', 'Kommune', 'ListeNavn', 'AfstemningsområdeDagiId'])['ListeStemmer'].first().reset_index()
+
+            # Derefter: Summér på tværs af afstemningsområder for hver kommune + parti
+            pivot = df_areas.groupby(['Valgart', 'Kommune', 'ListeNavn'])['ListeStemmer'].sum().reset_index()
+            pivot.rename(columns={'ListeStemmer': 'TotalStemmer'}, inplace=True)
+
+            # Gem separate filer for kommunalvalg og regionsrådsvalg
+            for valgart in pivot['Valgart'].unique():
+                valgart_pivot = pivot[pivot['Valgart'] == valgart].copy()
+                valgart_pivot = valgart_pivot[['Kommune', 'ListeNavn', 'TotalStemmer']]  # Drop Valgart kolonne
+
+                valgart_navn = valgart.replace('valg', '').replace('råds', 'raads')  # Filvenlig navn
+                pivot_fil = output_mappe / f"resultater_per_kommune_{valgart_navn}_{timestamp}.xlsx"
+                valgart_pivot.to_excel(pivot_fil, index=False, engine='openpyxl')
+                print(f"✓ Pivottabel gemt: {pivot_fil.name} ({len(valgart_pivot)} rækker)")
 
     if alle_mandater:
+        # Dedupliker: Behold kun nyeste data per kandidat
+        print("\n🔄 Deduplikerer mandatfordeling (beholder kun nyeste opdateringer)...")
+        før_antal = len(alle_mandater)
+        alle_mandater = dedupliker_nyeste_data(
+            alle_mandater,
+            ['KommuneKode', 'KandidatId']
+        )
+        efter_antal = len(alle_mandater)
+        print(f"   Før: {før_antal} rækker → Efter: {efter_antal} rækker ({før_antal - efter_antal} duplikater fjernet)")
+
         df = pd.DataFrame(alle_mandater)
-        
+
         # Gem Parquet
         parquet_fil = parquet_dir / f"mandatfordeling_ALLE_VALG_{timestamp}.parquet"
         save_parquet(df, parquet_fil, "Alle mandater (Parquet)")
@@ -498,8 +570,18 @@ def process_json_files(json_mappe, output_mappe):
         print(f"  {len(kommunal_kandidater)} rækker, {len(df.columns)} kolonner")
 
     if kommunal_resultater:
+        # Dedupliker: Behold kun nyeste data per afstemningsområde+kandidat
+        print("\n🔄 Deduplikerer kommunale valgresultater...")
+        før_antal = len(kommunal_resultater)
+        kommunal_resultater = dedupliker_nyeste_data(
+            kommunal_resultater,
+            ['AfstemningsområdeDagiId', 'KandidatId']
+        )
+        efter_antal = len(kommunal_resultater)
+        print(f"   Før: {før_antal} rækker → Efter: {efter_antal} rækker ({før_antal - efter_antal} duplikater fjernet)")
+
         df = pd.DataFrame(kommunal_resultater)
-        
+
         # Gem Parquet
         parquet_fil = parquet_dir / f"valgresultater_KOMMUNAL_{timestamp}.parquet"
         save_parquet(df, parquet_fil, "Kommunale resultater (Parquet)")
@@ -511,8 +593,18 @@ def process_json_files(json_mappe, output_mappe):
         print(f"  {len(kommunal_resultater)} rækker, {len(df.columns)} kolonner")
 
     if kommunal_mandater:
+        # Dedupliker: Behold kun nyeste data per kandidat
+        print("\n🔄 Deduplikerer kommunale mandater...")
+        før_antal = len(kommunal_mandater)
+        kommunal_mandater = dedupliker_nyeste_data(
+            kommunal_mandater,
+            ['KommuneKode', 'KandidatId']
+        )
+        efter_antal = len(kommunal_mandater)
+        print(f"   Før: {før_antal} rækker → Efter: {efter_antal} rækker ({før_antal - efter_antal} duplikater fjernet)")
+
         df = pd.DataFrame(kommunal_mandater)
-        
+
         # Gem Parquet
         parquet_fil = parquet_dir / f"mandatfordeling_KOMMUNAL_{timestamp}.parquet"
         save_parquet(df, parquet_fil, "Kommunale mandater (Parquet)")
@@ -542,6 +634,16 @@ def process_json_files(json_mappe, output_mappe):
         print(f"  {len(regions_kandidater)} rækker, {len(df.columns)} kolonner")
 
     if regions_resultater:
+        # Dedupliker: Behold kun nyeste data per afstemningsområde+kandidat
+        print("\n🔄 Deduplikerer regionale valgresultater...")
+        før_antal = len(regions_resultater)
+        regions_resultater = dedupliker_nyeste_data(
+            regions_resultater,
+            ['AfstemningsområdeDagiId', 'KandidatId']
+        )
+        efter_antal = len(regions_resultater)
+        print(f"   Før: {før_antal} rækker → Efter: {efter_antal} rækker ({før_antal - efter_antal} duplikater fjernet)")
+
         df = pd.DataFrame(regions_resultater)
         
         # Gem Parquet
@@ -555,8 +657,18 @@ def process_json_files(json_mappe, output_mappe):
         print(f"  {len(regions_resultater)} rækker, {len(df.columns)} kolonner")
 
     if regions_mandater:
+        # Dedupliker: Behold kun nyeste data per kandidat
+        print("\n🔄 Deduplikerer regionale mandater...")
+        før_antal = len(regions_mandater)
+        regions_mandater = dedupliker_nyeste_data(
+            regions_mandater,
+            ['KommuneKode', 'KandidatId']
+        )
+        efter_antal = len(regions_mandater)
+        print(f"   Før: {før_antal} rækker → Efter: {efter_antal} rækker ({før_antal - efter_antal} duplikater fjernet)")
+
         df = pd.DataFrame(regions_mandater)
-        
+
         # Gem Parquet
         parquet_fil = parquet_dir / f"mandatfordeling_REGIONAL_{timestamp}.parquet"
         save_parquet(df, parquet_fil, "Regionale mandater (Parquet)")

@@ -75,6 +75,9 @@ cd excel_output/00_START_HER/
 | `lav_magtanalyse.py` | **NYT!** Magtanalyse (enmandshære, mandattyveri, højborge, tynde flertaller) |
 | `generate_findings.py` | Auto-generer MASTER_FINDINGS.md |
 | `validate_data.py` | Valider data for fejl og realistiske værdier |
+| `validate_aggregates.py` | Valider nationale totaler og intern konsistens mod DR/valg.dk |
+| `stikprøve_validering.py` | Spot-check validering af specifikke kommune+parti kombinationer |
+| `tjek_tommy_problemer.py` | Specifik validering af rapporterede dataudfordringer |
 
 ## 📋 Pipeline Options
 
@@ -129,6 +132,13 @@ Alle felter fra valg.dk plus kønsestimering:
 - ⚠️ Køn er ESTIMERET via fornavne (ikke officielle data)
 - ⚠️ Binær kønsklassifikation (M/K)
 - ⚠️ Ingen demografiske data (alder, uddannelse)
+
+**Validering:**
+- ✅ **100% match** med DR's officielle nationale totaler (stemmeberettigede, gyldige stemmer, valgdeltagelse)
+- ✅ **100% match** på verificerede stikprøver (Hjørring-Venstre: 8,037 stemmer, Hedensted-DF: 1,829 stemmer)
+- ✅ **Intern konsistens** verificeret (stemme-balance, ingen duplikater, realistiske værdier)
+- ✅ **Pivot-filer opdelt** korrekt per valgtype (kommunal/regional) med korrekt brug af ListeStemmer (personlige + listestemmer)
+- ℹ️ Se `VALIDERINGS_RAPPORT.md` for detaljeret valideringsgennemgang
 
 ## 🔧 Tekniske Detaljer
 
