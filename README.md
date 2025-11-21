@@ -57,6 +57,9 @@ cd excel_output/00_START_HER/
 - **01_Kommunalvalg/** - Alle kommunale data (~59 MB)
 - **02_Regionsrådsvalg/** - Alle regionale data (~130 MB)
 - **03_Samlet_Alle_Valg/** - Kombineret datasæt (~200 MB)
+  - Inkluderer også geografiske aggregeringer:
+  - `resultater_per_kommune_*.xlsx` - Kommune-niveau (1,165 rækker)
+  - `resultater_per_afstemningsomraade_*.xlsx` - Afstemningsområde-niveau med adresser (17k+ rækker) - **NYT!**
 - **04_Reference_Geografi/** - Geografiske reference-filer (~196 KB)
 - **05_Valgdeltagelse_Kommunal/** - 1,283 valgdeltagelse-filer per opstillingskreds (~10 MB)
 - **06_Valgdeltagelse_Regional/** - 1,223 valgdeltagelse-filer per opstillingskreds (~9.6 MB)
@@ -78,6 +81,7 @@ cd excel_output/00_START_HER/
 | `validate_aggregates.py` | Valider nationale totaler og intern konsistens mod DR/valg.dk |
 | `stikprøve_validering.py` | Spot-check validering af specifikke kommune+parti kombinationer |
 | `tjek_tommy_problemer.py` | Specifik validering af rapporterede dataudfordringer |
+| `aggreger_afstemningsomraade.py` | Aggreger resultater per afstemningsområde + adresse (til geografiske kort) |
 
 ## 📋 Pipeline Options
 
@@ -172,6 +176,7 @@ Med dette datasæt kan du undersøge:
 ✅ **Erhvervsfordeling** - Kandidaternes job-titler per parti (se Analyse_generel.xlsx)
 ✅ **Partistatistik** - Kandidater, stemmer og gennemsnit per parti (se Analyse_generel.xlsx)
 ✅ **Geografiske mønstre** - "Røde" vs "blå" områder, lokale vs udefra kommende kandidater
+✅ **Geografiske kort** - Data per afstemningsområde med adresser til heatmaps og kortvisualisering (se `resultater_per_afstemningsomraade_*.xlsx`)
 ✅ **Historisk sammenligning** - Ændringer siden 2021 (kræver historiske data)
 
 ## 🤝 Bidrag
