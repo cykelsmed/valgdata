@@ -22,6 +22,7 @@ from hent_valgdata import main as hent_data_main
 from valg_json_til_excel import main as convert_main
 from lav_kønsanalyse import main as kønsanalyse_main
 from lav_generel_analyse import main as generel_analyse_main
+from lav_magtanalyse import main as magtanalyse_main
 from lav_borgmester_analyse import main as borgmester_analyse_main
 from parse_borgmestre import main as parse_borgmestre_main
 from generate_findings import main as generate_findings_main
@@ -123,6 +124,12 @@ class Pipeline:
 
         # Lav analyse
         return self.run_function(borgmester_analyse_main, "Borgmester Analyse", str(self.output_dir))
+
+    def analyze_magt(self):
+        """Lav magtanalyse (enmandshære, mandattyveri, højborge, tynde flertaller)"""
+        self.log("💪 Laver magtanalyse...")
+
+        return self.run_function(magtanalyse_main, "Magtanalyse", str(self.output_dir))
 
     def generate_findings(self):
         """Generer findings og MASTER_FINDINGS.md"""
@@ -328,6 +335,8 @@ Eksempler:
         if not pipeline.analyze_general():
             success = False
         if not pipeline.analyze_borgmestre():
+            success = False
+        if not pipeline.analyze_magt():
             success = False
 
     # Findings

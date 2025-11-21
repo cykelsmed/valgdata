@@ -195,32 +195,12 @@ def lav_generel_analyse(output_dir='excel_output'):
         parti_kand = parti_kand.sort_values('Antal Kandidater', ascending=False)
         parti_kand.to_excel(writer, sheet_name='Partistatistik', index=False)
 
-    # --- ANALYSE 5: GEOGRAFI (Bor kandidaten i kommunen?) ---
-    print("  • Analyserer kandidaternes bopæl...")
-    if 'Bopæl' in df_kand.columns and 'KommuneNavn' in df_kand.columns:
-        df_geo = df_kand[df_kand['Bopæl'].notna() & df_kand['KommuneNavn'].notna()].copy()
-
-        # Simpel check: Er bopæl indeholdt i kommunenavnet?
-        df_geo['LokalKandidat'] = df_geo.apply(
-            lambda x: str(x['Bopæl']).lower() in str(x['KommuneNavn']).lower(),
-            axis=1
-        )
-
-        # Total statistik
-        lokal_stats = df_geo['LokalKandidat'].value_counts().reset_index()
-        lokal_stats.columns = ['Bor i Kommunen (Estimat)', 'Antal']
-        lokal_stats['Andel %'] = (lokal_stats['Antal'] / len(df_geo) * 100).round(1)
-        lokal_stats.to_excel(writer, sheet_name='Geografi - Total', index=False)
-
-        # Per parti
-        geo_parti = df_geo.groupby(['ListeNavn', 'LokalKandidat']).size().unstack(fill_value=0)
-        geo_parti['Total'] = geo_parti.sum(axis=1)
-        geo_parti['% Lokale'] = (geo_parti[True] / geo_parti['Total'] * 100).round(1)
-        geo_parti = geo_parti.sort_values('% Lokale', ascending=False)
-        geo_parti.to_excel(writer, sheet_name='Geografi - Per Parti')
-
-        pct_lokal = (df_geo['LokalKandidat'].sum() / len(df_geo) * 100)
-        print(f"    → Andel lokale kandidater: {pct_lokal:.1f}% (estimat)")
+    # --- ANALYSE 5: GEOGRAFI - FJERNET ---
+    # Note: Geografisk analyse (lokale vs eksterne kandidater) er fjernet
+    # fordi dataene er for upræcise. Bopæl indeholder kun by-navn (fx "Viby J"),
+    # ikke kommune, hvilket giver mange false negatives.
+    # En korrekt analyse ville kræve postnummer → kommune mapping.
+    print("  • Geografisk analyse sprunget over (upræcise data)")
 
     # --- ANALYSE 6: KANDIDATER PER KOMMUNE ---
     print("  • Analyserer kandidater per kommune...")

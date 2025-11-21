@@ -267,21 +267,9 @@ def analyze_data(output_dir='excel_output'):
         except Exception as e:
             print(f"Kunne ikke læse partistatistik: {e}")
 
-        # Geografi - Total (NYT!)
-        try:
-            geografi_total = pd.read_excel(generel_fil, sheet_name='Geografi - Total')
-            findings['geografi_total'] = geografi_total.to_dict('records')
-        except Exception as e:
-            print(f"Kunne ikke læse geografi total: {e}")
-
-        # Geografi - Per Parti (NYT!)
-        try:
-            geografi_parti = pd.read_excel(generel_fil, sheet_name='Geografi - Per Parti')
-            # Top 10 partier med mest lokale kandidater
-            geografi_top = geografi_parti.nlargest(10, True)  # True = lokale kandidater
-            findings['geografi_per_parti'] = geografi_top.to_dict('records')
-        except Exception as e:
-            print(f"Kunne ikke læse geografi per parti: {e}")
+        # Geografi - FJERNET (upræcise data)
+        # Geografisk analyse er fjernet fordi bopælsdata kun indeholder by-navn,
+        # ikke kommune-kode, hvilket giver mange false negatives.
 
         # Kandidater per Kommune (NYT!)
         try:
@@ -330,6 +318,49 @@ def analyze_data(output_dir='excel_output'):
             findings['top_20_stemmeslugere'] = stemmeslugere.head(20).to_dict('records')
         except Exception as e:
             print(f"Kunne ikke læse top 20 stemmeslugere: {e}")
+
+    # === MAGTANALYSE (fra Analyse_magt.xlsx) ===
+    magt_fil = f'{output_dir}/00_START_HER/Analyse_magt.xlsx'
+    if Path(magt_fil).exists():
+        print(f"Læser magtanalyse fra {Path(magt_fil).name}...")
+
+        # 1. De Tragiske Helte (Mandattyveri)
+        try:
+            robbed = pd.read_excel(magt_fil, sheet_name='De Tragiske Helte')
+            if len(robbed) > 0:
+                findings['mandate_theft_top10'] = robbed.head(10).to_dict('records')
+                findings['mandate_theft_count'] = len(robbed)
+            else:
+                findings['mandate_theft_count'] = 0
+        except Exception as e:
+            print(f"Kunne ikke læse mandattyveri: {e}")
+            findings['mandate_theft_count'] = 0
+
+        # 2. Enmandshæren (Dependency Ratio)
+        try:
+            dependency = pd.read_excel(magt_fil, sheet_name='Enmandshæren')
+            findings['dependency_top20'] = dependency.head(20).to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse enmandshæren: {e}")
+
+        # 3. Geografiske Højborge
+        try:
+            strongholds = pd.read_excel(magt_fil, sheet_name='Geografiske Højborge')
+            findings['strongholds_top20'] = strongholds.head(20).to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse geografiske højborge: {e}")
+
+        # 4. Tynde Flertaller
+        try:
+            thin_majorities = pd.read_excel(magt_fil, sheet_name='Tynde Flertaller')
+            # Only include parties with POSITIVE margin (actual majorities, not coalitions)
+            thin_majorities_positive = thin_majorities[thin_majorities['Margin (over flertal)'] > 0].copy()
+            # Sorter efter mindste margin (mest sårbare)
+            thin_majorities_sorted = thin_majorities_positive.sort_values('Margin (over flertal)')
+            findings['thin_majorities_all'] = thin_majorities_sorted.to_dict('records')
+            findings['thin_majorities_bottom10'] = thin_majorities_sorted.head(10).to_dict('records')
+        except Exception as e:
+            print(f"Kunne ikke læse tynde flertaller: {e}")
 
     return findings
 
@@ -404,6 +435,86 @@ def generate_master_findings(findings, output_dir='excel_output'):
             forskel = top_kandidat.get('Personlige Stemmer', 0) - nummer_to.get('Personlige Stemmer', 0)
             content += f"""
 💡 *{top_kandidat.get('Navn', 'N/A')} trækker {forskel:,} flere stemmer end nummer 2 - en massiv personlig opbakning.*
+"""
+
+    # MAGT-ANALYSE 1: ENMANDSHÆREN (Dependency Ratio)
+    if 'dependency_top20' in findings and findings['dependency_top20']:
+        content += f"""
+
+### 🎯 Enmandshæren - Partier Båret af Én Kandidat
+**Politisk Sårbarhed: Når Alt Afhænger af Én Person**
+
+"""
+        for i, kand in enumerate(findings['dependency_top20'][:10], 1):
+            content += f"{i}. **{kand.get('Navn', 'N/A')}** ({kand.get('Parti', 'N/A')}, {kand.get('Kommune', 'N/A')}): **{kand.get('Dependency Ratio %', 0):.1f}%** af partiets stemmer\n"
+
+        top_depend = findings['dependency_top20'][0]
+        content += f"""
+💡 *{top_depend.get('Navn', 'N/A')} fik {top_depend.get('Dependency Ratio %', 0):.1f}% af alle {top_depend.get('Parti', 'N/A')}'s stemmer i {top_depend.get('Kommune', 'N/A')} - partiet kollapser hvis denne person stopper.*
+"""
+
+    # MAGT-ANALYSE 2: DE TRAGISKE HELTE (Mandattyveri)
+    if 'mandate_theft_count' in findings:
+        if findings['mandate_theft_count'] > 0 and 'mandate_theft_top10' in findings:
+            content += f"""
+
+### 💔 De Tragiske Helte - Snydt af Listestemmer
+**{findings['mandate_theft_count']} Kandidater Fik Flere Stemmer End Valgte Partifæller**
+
+"""
+            for i, kand in enumerate(findings['mandate_theft_top10'][:5], 1):
+                content += f"{i}. **{kand.get('Navn', 'N/A')}** ({kand.get('Parti', 'N/A')}, {kand.get('Kommune', 'N/A')}): {kand.get('Personlige Stemmer', 0):,} stemmer (sidste valgte fik kun {kand.get('Sidste Valgtes Stemmer', 0):,})\n"
+
+            worst_case = findings['mandate_theft_top10'][0]
+            content += f"""
+💡 *{worst_case.get('Navn', 'N/A')} blev ikke valgt til trods for {worst_case.get('Stemmeoverskud', 0):,} flere personlige stemmer end {worst_case.get('Sidste Valgte', 'N/A')} - listestemmerne bestemte.*
+"""
+        else:
+            content += f"""
+
+### ✅ Systemet Virker - Ingen Mandattyveri
+**Det Danske Valgsy stem Tildeler Mandater Retfærdigt**
+
+Analysen fandt ingen kandidater der fik flere personlige stemmer end den sidste valgte fra deres parti, men stadig ikke blev valgt. Dette viser at systemet med listestemmer og personlige stemmer fungerer proportionalt.
+"""
+
+    # MAGT-ANALYSE 3: GEOGRAFISKE HØJBORGE
+    if 'strongholds_top20' in findings and findings['strongholds_top20']:
+        content += f"""
+
+### 🗺️ Geografiske Højborge - Hvor Partierne Slår Igennem
+**Afstemningsområder Med Ekstraordinær Partiopbakning**
+
+"""
+        for i, area in enumerate(findings['strongholds_top20'][:10], 1):
+            content += f"{i}. **{area.get('Parti', 'N/A')}** i {area.get('Afstemningsområde', 'N/A')}, {area.get('Kommune', 'N/A')}: {area.get('Område %', 0):.1f}% (kommunegennemsnit: {area.get('Kommune Gennemsnit %', 0):.1f}%, **+{area.get('Afvigelse', 0):.1f}%**)\n"
+
+        strongest = findings['strongholds_top20'][0]
+        content += f"""
+💡 *{strongest.get('Parti', 'N/A')} fik {strongest.get('Område %', 0):.1f}% i {strongest.get('Afstemningsområde', 'N/A')} - {strongest.get('Afvigelse', 0):.1f} procentpoint over kommunegennemsnittet. Lokale højborge viser hvor partierne har deres stærkeste forankring.*
+"""
+
+    # MAGT-ANALYSE 4: TYNDE FLERTALLER
+    if 'thin_majorities_bottom10' in findings and findings['thin_majorities_bottom10']:
+        content += f"""
+
+### ⚠️ Tynde Flertaller - Risiko For Politisk Kaos
+**Kommuner Hvor Borgmesterens Parti Har Mindst Muligt Flertal**
+
+"""
+        for i, kom in enumerate(findings['thin_majorities_bottom10'][:5], 1):
+            margin = kom.get('Margin (over flertal)', 0)
+            margin_text = f"+{margin:.1f} mandater" if margin > 0 else f"{margin:.1f} mandater (MINDRETAL!)"
+            content += f"{i}. **{kom.get('Kommune', 'N/A')}** ({kom.get('Borgmester', 'N/A')}, {kom.get('Parti', 'N/A')}): {kom.get('Parti Mandater', 0)} af {kom.get('Total Mandater', 0)} mandater (**{margin_text}**)\n"
+
+        thinnest = findings['thin_majorities_bottom10'][0]
+        if thinnest.get('Margin (over flertal)', 0) < 1:
+            content += f"""
+💡 *{thinnest.get('Kommune', 'N/A')} har en borgmester fra {thinnest.get('Parti', 'N/A')}, men partiet har IKKE selvstændigt flertal - afhængig af koalition. Én utilfreds politiker kan vælte budgettet.*
+"""
+        else:
+            content += f"""
+💡 *{thinnest.get('Kommune', 'N/A')} har det tyndeste flertal - {thinnest.get('Parti', 'N/A')} har kun {thinnest.get('Margin (over flertal)', 0):.1f} mandater over græns en. Politisk ustabilitet kan opstå ved uenighed.*
 """
 
     # STORY 3: VALGDELTAGELSE (UDVIDET)
@@ -553,31 +664,9 @@ def generate_master_findings(findings, output_dir='excel_output'):
 
         content += "\n💡 *Stemmer per kandidat viser hvor effektivt partiet udnytter sine kandidater - højere tal betyder færre kandidater trækker flere stemmer.*\n"
 
-    # GEOGRAFISK ANALYSE
-    if 'geografi_total' in findings and findings['geografi_total']:
-        content += """
-
----
-
-## 📍 GEOGRAFISK ANALYSE - Lokale vs Eksterne Kandidater
-
-"""
-        for row in findings['geografi_total']:
-            bor_i_kommunen = row.get('Bor i Kommunen (Estimat)', 'N/A')
-            antal = row.get('Antal', 0)
-            andel = row.get('Andel %', 0)
-            if bor_i_kommunen == True:
-                content += f"**Lokale kandidater:** {antal:,} ({andel:.1f}%) - bor i den kommune de stiller op i\n"
-            elif bor_i_kommunen == False:
-                content += f"**Eksterne kandidater:** {antal:,} ({andel:.1f}%) - bor IKKE i kommunen\n"
-
-        content += "\n💡 *Kun omkring 1 ud af 5 kandidater bor faktisk i den kommune de stiller op i. Resten er \"faldskærmskandidater\" eller stiller op i nabokommuner.*\n"
-
-        # Per parti
-        if 'geografi_per_parti' in findings and findings['geografi_per_parti']:
-            content += "\n### Hvilke Partier Har Mest Lokale Kandidater?\n\n"
-            for i, parti in enumerate(findings['geografi_per_parti'][:10], 1):
-                content += f"{i}. **{parti.get('ListeNavn', 'N/A')}**: {parti.get('% Lokale', 0):.1f}% lokale kandidater\n"
+    # GEOGRAFISK ANALYSE - FJERNET
+    # Geografisk analyse er fjernet fordi bopælsdata kun indeholder by-navn,
+    # ikke kommune, hvilket gav mange false negatives (kun 22% accuracy).
 
     # DATA FILES
     content += """
@@ -587,9 +676,10 @@ def generate_master_findings(findings, output_dir='excel_output'):
 ## 📊 ANALYSEFILER
 
 ### Start Her (små, overskuelige filer)
-1. **Analyse_generel.xlsx** (38 KB) - Valgdeltagelse, TOP 100 stemmeslugere, job-titler, partistatistik
-2. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
-3. **Analyse_borgmestre.xlsx** (13 KB) - 97 borgmestre, partifordeling, magtskifter, kønsfordeling
+1. **Analyse_magt.xlsx** (25 KB) - **NYT!** Enmandshære, mandattyveri, geografiske højborge, tynde flertaller
+2. **Analyse_generel.xlsx** (38 KB) - Valgdeltagelse, TOP 100 stemmeslugere, job-titler, partistatistik
+3. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
+4. **Analyse_borgmestre.xlsx** (13 KB) - 97 borgmestre, partifordeling, magtskifter, kønsfordeling
 
 ### Detaljerede Datasæt
 - **01_Kommunalvalg/** - Alle kommunale data (~24 MB)
@@ -648,6 +738,7 @@ git clone https://github.com/cykelsmed/valgdata.git
 cd valgdata/excel_output/00_START_HER/
 
 # Åbn Excel-filer direkte:
+- Analyse_magt.xlsx
 - Analyse_generel.xlsx
 - Analyse_kønsfordeling.xlsx
 - Analyse_borgmestre.xlsx
