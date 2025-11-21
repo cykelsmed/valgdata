@@ -13,6 +13,7 @@ Komplet automatiseret pipeline til analyse af danske valgdata (Kommunal- og Regi
 - **Partistatistik** - Kandidater, stemmer og gennemsnit
 - **Geografisk analyse** - Lokale vs eksterne kandidater
 - **Borgmester-analyse** - Partifordeling, magtskifter, kønsfordeling blandt borgmestre
+- **Magtanalyse (NYT!)** - Enmandshære, mandattyveri, geografiske højborge, tynde flertaller
 - **Auto-genererede findings** i MASTER_FINDINGS.md
 - **Komplet pipeline** - én kommando kører alt
 
@@ -46,10 +47,11 @@ cd excel_output/00_START_HER/
 ## 📁 Pipeline Outputs
 
 ### Start her (små filer i `00_START_HER/`):
-1. **MASTER_FINDINGS.md** - Komplet overblik over alle findings (stemmeslugere, valgdeltagelse, køn, erhverv, borgmestre)
-2. **Analyse_generel.xlsx** (38 KB) - TOP 100 stemmeslugere, valgdeltagelse, job-titler, partistatistik, geografi
-3. **Analyse_borgmestre.xlsx** (13 KB) - 97 borgmestre, partifordeling, magtskifter, kønsfordeling
-4. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
+1. **MASTER_FINDINGS.md** - Komplet overblik over alle findings (stemmeslugere, valgdeltagelse, køn, erhverv, borgmestre, magtanalyse)
+2. **Analyse_magt.xlsx** (25 KB) - **NYT!** Enmandshære, mandattyveri, geografiske højborge, tynde flertaller
+3. **Analyse_generel.xlsx** (38 KB) - TOP 100 stemmeslugere, valgdeltagelse, job-titler, partistatistik
+4. **Analyse_borgmestre.xlsx** (13 KB) - 97 borgmestre, partifordeling, magtskifter, kønsfordeling
+5. **Analyse_kønsfordeling.xlsx** (16 KB) - Kønsfordeling per parti/kommune/region
 
 ### Detaljerede data:
 - **01_Kommunalvalg/** - Alle kommunale data (~59 MB)
@@ -67,9 +69,10 @@ cd excel_output/00_START_HER/
 | `hent_valgdata.py` | Download fra valg.dk SFTP |
 | `valg_json_til_excel.py` | JSON → Excel med kønsestimering |
 | `lav_kønsanalyse.py` | Generer kønsanalyse per parti/kommune |
-| `lav_generel_analyse.py` | Generel analyse (valgdeltagelse, job, stemmeslugere) |
+| `lav_generel_analyse.py` | Generel analyse (valgdeltagelse, job, stemmeslugere, partistatistik) |
 | `parse_borgmestre.py` | Parse borgmestre.md til struktureret CSV |
 | `lav_borgmester_analyse.py` | Borgmester-analyse (partifordeling, magtskifter, køn) |
+| `lav_magtanalyse.py` | **NYT!** Magtanalyse (enmandshære, mandattyveri, højborge, tynde flertaller) |
 | `generate_findings.py` | Auto-generer MASTER_FINDINGS.md |
 | `validate_data.py` | Valider data for fejl og realistiske værdier |
 
